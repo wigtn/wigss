@@ -1,0 +1,47 @@
+{
+  "name": "wigss",
+  "version": "0.1.0",
+  "description": "WIGSS (Style Shaper) — visual code refactoring tool with always-on AI agent",
+  "private": true,
+  "bin": {
+    "wigss": "./bin/cli.js"
+  },
+  "scripts": {
+    "dev": "concurrently \"next dev --port 4000\" \"pnpm --filter demo-target dev\"",
+    "build": "next build",
+    "start": "next start --port 4000",
+    "lint": "next lint"
+  },
+  "keywords": [
+    "ai",
+    "agent",
+    "visual-editor",
+    "refactoring"
+  ],
+  "author": "Team WIGSS (WIGTN Crew)",
+  "license": "MIT",
+  "packageManager": "pnpm@10.28.1",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.80.0",
+    "@types/fabric": "^5.3.11",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@types/ws": "^8.18.1",
+    "autoprefixer": "^10.4.27",
+    "chokidar": "^5.0.0",
+    "commander": "^14.0.3",
+    "concurrently": "^9.2.1",
+    "fabric": "^7.2.0",
+    "next": "^14.2.35",
+    "open": "^11.0.0",
+    "openai": "^6.33.0",
+    "playwright": "^1.58.2",
+    "postcss": "^8.5.8",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "tailwindcss": "^4.2.2",
+    "typescript": "^6.0.2",
+    "ws": "^8.20.0",
+    "zustand": "^5.0.12"
+  }
+}

@@ -2,7 +2,7 @@
 
 > **PRD**: docs/prd/PRD_wigss.md (v5.1)
 > **Updated**: 2026-03-28
-> **Status**: pending
+> **Status**: in_progress
 > **Hackathon**: 2026-03-28
 > **Team**: Team WIGSS (WIGTN Crew)
 
@@ -20,41 +20,41 @@
 
 ### Phase 0: 환경 검증 + 스캐폴딩 (2h)
 
-- [ ] 0.1 Playwright 설치 + localhost 스캔 테스트 (DOM + 스크린샷)
-- [ ] 0.2 OpenAI API function calling 테스트
-- [ ] 0.3 Claude API tool use 테스트
-- [ ] 0.4 WebSocket (ws) 서버-클라이언트 연결 PoC
-- [ ] 0.5 iframe + fabric.js Canvas 드래그/리사이즈 PoC
-- [ ] 0.6 Next.js 14 프로젝트 생성 (pnpm, TypeScript, Tailwind)
-- [ ] 0.7 디렉토리 구조 생성 (PRD 6.5 기준)
-- [ ] 0.8 의존성 설치 (playwright, openai, @anthropic-ai/sdk, zustand, fabric, ws, chokidar, commander, open)
-- [ ] 0.9 .env.local (OPENAI_API_KEY + ANTHROPIC_API_KEY) + CLAUDE.md
-- [ ] 0.10 bin/cli.js 기본 구조 (commander --port, cwd 감지, open)
+- [x] 0.1 Playwright 설치 + localhost 스캔 테스트 (DOM + 스크린샷)
+- [x] 0.2 OpenAI API function calling 테스트
+- [x] 0.3 Claude API tool use 테스트
+- [x] 0.4 WebSocket (ws) 서버-클라이언트 연결 PoC
+- [x] 0.5 iframe + fabric.js Canvas 드래그/리사이즈 PoC
+- [x] 0.6 Next.js 14 프로젝트 생성 (pnpm, TypeScript, Tailwind)
+- [x] 0.7 디렉토리 구조 생성 (PRD 6.5 기준)
+- [x] 0.8 의존성 설치 (playwright, openai, @anthropic-ai/sdk, zustand, fabric, ws, chokidar, commander, open)
+- [x] 0.9 .env.local (OPENAI_API_KEY + ANTHROPIC_API_KEY) + CLAUDE.md
+- [x] 0.10 bin/cli.js 기본 구조 (commander --port, cwd 감지, open)
 
 **판단**: 0.1~0.5 실패 시 PRD 9.1 Fallback 참조
 
 ### Phase 0.5: demo-target 생성 (1h)
 
-- [ ] 0.11 demo-target/ Next.js + Tailwind 프로젝트
-- [ ] 0.12 Navbar (h-16, 의도적 높이 비효율)
-- [ ] 0.13 CardGrid + Card 3개 (grid-cols-3, 간격 불균일 16px/24px)
-- [ ] 0.14 Sidebar (상단 정렬 8px 어긋남)
-- [ ] 0.15 Footer (높이 과도 200px)
-- [ ] 0.16 localhost:3001 서빙 확인
-- [ ] 0.17 사전 스캔 결과 캐싱 (데모 모드용)
+- [x] 0.11 demo-target/ Next.js + Tailwind 프로젝트
+- [x] 0.12 Navbar (h-16, 의도적 높이 비효율)
+- [x] 0.13 CardGrid + Card 3개 (grid-cols-3, 간격 불균일 16px/24px)
+- [x] 0.14 Sidebar (상단 정렬 8px 어긋남)
+- [x] 0.15 Footer (높이 과도 200px)
+- [x] 0.16 localhost:3001 서빙 확인
+- [x] 0.17 사전 스캔 결과 캐싱 (데모 모드용)
 
 ### Phase 1: 에이전트 코어 + 컴포넌트 인식 (3h) ★핵심★
 
-- [ ] 1.1 WebSocket 서버 (ws/route.ts 또는 별도 ws-server.ts)
-- [ ] 1.2 에이전트 루프 (lib/agent/agent-loop.ts) — 이벤트 기반
-- [ ] 1.3 OpenAI 클라이언트 (lib/agent/openai-client.ts) — function calling
-- [ ] 1.4 Playwright DOM 스캔 + 스크린샷 + 소스 파일 목록
-- [ ] 1.5 GPT-4o 컴포넌트 자동 인식 (identify_component tool)
-- [ ] 1.6 GPT-4o 디자인 제안 (스캔 후 자동 연쇄)
-- [ ] 1.7 Zustand 스토어 (editor-store + agent-store)
-- [ ] 1.8 UI: 플로팅 툴바 + VisualEditor + AgentPanel
-- [ ] 1.9 AgentPanel: 상태 표시 + 인식 로그 + 제안 카드 [적용]/[무시]
-- [ ] 1.10 데모 모드 분기
+- [x] 1.1 WebSocket 서버 (ws/route.ts 또는 별도 ws-server.ts)
+- [x] 1.2 에이전트 루프 (lib/agent/agent-loop.ts) — 이벤트 기반
+- [x] 1.3 OpenAI 클라이언트 (lib/agent/openai-client.ts) — function calling
+- [x] 1.4 Playwright DOM 스캔 + 스크린샷 + 소스 파일 목록
+- [x] 1.5 GPT-4o 컴포넌트 자동 인식 (identify_component tool)
+- [x] 1.6 GPT-4o 디자인 제안 (스캔 후 자동 연쇄)
+- [x] 1.7 Zustand 스토어 (editor-store + agent-store)
+- [x] 1.8 UI: 플로팅 툴바 + VisualEditor + AgentPanel
+- [x] 1.9 AgentPanel: 상태 표시 + 인식 로그 + 제안 카드 [적용]/[무시]
+- [x] 1.10 데모 모드 분기
 
 **검증**: URL → 스캔 → WebSocket으로 컴포넌트 인식 → 제안 표시
 **커밋**: `feat: WebSocket agent + component detection + design suggestions`
@@ -157,12 +157,22 @@
 
 | Metric | Value |
 |--------|-------|
-| Total Tasks | 0/50 |
-| Current Phase | Phase 0 |
-| Status | pending |
+| Total Tasks | 27/50 |
+| Current Phase | Phase 1 completed |
+| Status | in_progress |
 
 ## Execution Log
 
 | Timestamp | Phase | Task | Status |
 |-----------|-------|------|--------|
-| - | - | - | - |
+| 2026-03-28 | Phase 0 | Next.js 14 프로젝트 생성 + 의존성 | completed |
+| 2026-03-28 | Phase 0 | 디렉토리 구조 + 타입 정의 + CLI | completed |
+| 2026-03-28 | Phase 0 | Playwright Chromium 설치 | completed |
+| 2026-03-28 | Phase 0.5 | demo-target 전체 (Navbar, CardGrid, Card, Sidebar, Footer) | completed |
+| 2026-03-28 | Phase 0.5 | 사전 스캔 결과 캐싱 | completed |
+| 2026-03-28 | Phase 1 | WebSocket 서버 + 에이전트 루프 | completed |
+| 2026-03-28 | Phase 1 | OpenAI 클라이언트 + tools 정의 | completed |
+| 2026-03-28 | Phase 1 | Playwright DOM 스캔 + 파일 유틸 | completed |
+| 2026-03-28 | Phase 1 | Zustand 스토어 (editor + agent) | completed |
+| 2026-03-28 | Phase 1 | UI: FloatingToolbar + VisualEditor + AgentPanel | completed |
+| 2026-03-28 | Phase 1 | 빌드 검증 (main + demo-target) | passed |

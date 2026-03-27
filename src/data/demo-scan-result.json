@@ -1,0 +1,360 @@
+{
+  "url": "http://localhost:3001",
+  "timestamp": 0,
+  "elements": [
+    {
+      "id": "navbar",
+      "tagName": "nav",
+      "className": "navbar",
+      "boundingBox": { "x": 0, "y": 0, "width": 1280, "height": 64 },
+      "visible": true,
+      "children": [
+        {
+          "id": "navbar-logo",
+          "tagName": "div",
+          "className": "navbar-logo",
+          "boundingBox": { "x": 16, "y": 12, "width": 120, "height": 40 },
+          "visible": true,
+          "children": [],
+          "attributes": {},
+          "textContent": "WIGSS Demo"
+        },
+        {
+          "id": "navbar-links",
+          "tagName": "ul",
+          "className": "navbar-links",
+          "boundingBox": { "x": 800, "y": 16, "width": 464, "height": 32 },
+          "visible": true,
+          "children": [],
+          "attributes": { "role": "navigation" },
+          "textContent": "Home About Services Contact"
+        }
+      ],
+      "attributes": { "role": "navigation" },
+      "textContent": ""
+    },
+    {
+      "id": "card-grid",
+      "tagName": "div",
+      "className": "card-grid",
+      "boundingBox": { "x": 0, "y": 64, "width": 960, "height": 400 },
+      "visible": true,
+      "children": [
+        {
+          "id": "card-1",
+          "tagName": "div",
+          "className": "card",
+          "boundingBox": { "x": 16, "y": 80, "width": 296, "height": 320 },
+          "visible": true,
+          "children": [
+            {
+              "id": "card-1-img",
+              "tagName": "img",
+              "className": "card-image",
+              "boundingBox": { "x": 16, "y": 80, "width": 296, "height": 180 },
+              "visible": true,
+              "children": [],
+              "attributes": { "alt": "Card 1 image" },
+              "textContent": ""
+            },
+            {
+              "id": "card-1-title",
+              "tagName": "h3",
+              "className": "card-title",
+              "boundingBox": { "x": 32, "y": 272, "width": 264, "height": 28 },
+              "visible": true,
+              "children": [],
+              "attributes": {},
+              "textContent": "Getting Started"
+            },
+            {
+              "id": "card-1-desc",
+              "tagName": "p",
+              "className": "card-description",
+              "boundingBox": { "x": 32, "y": 308, "width": 264, "height": 48 },
+              "visible": true,
+              "children": [],
+              "attributes": {},
+              "textContent": "Learn the basics of WIGSS and start building."
+            }
+          ],
+          "attributes": { "data-component": "card" },
+          "textContent": ""
+        },
+        {
+          "id": "card-2",
+          "tagName": "div",
+          "className": "card",
+          "boundingBox": { "x": 328, "y": 80, "width": 296, "height": 320 },
+          "visible": true,
+          "children": [
+            {
+              "id": "card-2-img",
+              "tagName": "img",
+              "className": "card-image",
+              "boundingBox": { "x": 328, "y": 80, "width": 296, "height": 180 },
+              "visible": true,
+              "children": [],
+              "attributes": { "alt": "Card 2 image" },
+              "textContent": ""
+            },
+            {
+              "id": "card-2-title",
+              "tagName": "h3",
+              "className": "card-title",
+              "boundingBox": { "x": 344, "y": 272, "width": 264, "height": 28 },
+              "visible": true,
+              "children": [],
+              "attributes": {},
+              "textContent": "AI Agent"
+            },
+            {
+              "id": "card-2-desc",
+              "tagName": "p",
+              "className": "card-description",
+              "boundingBox": { "x": 344, "y": 308, "width": 264, "height": 48 },
+              "visible": true,
+              "children": [],
+              "attributes": {},
+              "textContent": "Meet your always-on AI design assistant."
+            }
+          ],
+          "attributes": { "data-component": "card" },
+          "textContent": ""
+        },
+        {
+          "id": "card-3",
+          "tagName": "div",
+          "className": "card",
+          "boundingBox": { "x": 648, "y": 80, "width": 296, "height": 320 },
+          "visible": true,
+          "children": [
+            {
+              "id": "card-3-img",
+              "tagName": "img",
+              "className": "card-image",
+              "boundingBox": { "x": 648, "y": 80, "width": 296, "height": 180 },
+              "visible": true,
+              "children": [],
+              "attributes": { "alt": "Card 3 image" },
+              "textContent": ""
+            },
+            {
+              "id": "card-3-title",
+              "tagName": "h3",
+              "className": "card-title",
+              "boundingBox": { "x": 664, "y": 272, "width": 264, "height": 28 },
+              "visible": true,
+              "children": [],
+              "attributes": {},
+              "textContent": "Visual Editor"
+            },
+            {
+              "id": "card-3-desc",
+              "tagName": "p",
+              "className": "card-description",
+              "boundingBox": { "x": 664, "y": 308, "width": 264, "height": 48 },
+              "visible": true,
+              "children": [],
+              "attributes": {},
+              "textContent": "Drag, resize, and refactor visually."
+            }
+          ],
+          "attributes": { "data-component": "card" },
+          "textContent": ""
+        }
+      ],
+      "attributes": {},
+      "textContent": ""
+    },
+    {
+      "id": "sidebar",
+      "tagName": "aside",
+      "className": "sidebar",
+      "boundingBox": { "x": 960, "y": 72, "width": 256, "height": 400 },
+      "visible": true,
+      "children": [
+        {
+          "id": "sidebar-title",
+          "tagName": "h2",
+          "className": "sidebar-title",
+          "boundingBox": { "x": 976, "y": 88, "width": 224, "height": 32 },
+          "visible": true,
+          "children": [],
+          "attributes": {},
+          "textContent": "Categories"
+        },
+        {
+          "id": "sidebar-list",
+          "tagName": "ul",
+          "className": "sidebar-list",
+          "boundingBox": { "x": 976, "y": 128, "width": 224, "height": 200 },
+          "visible": true,
+          "children": [],
+          "attributes": {},
+          "textContent": "Design Development AI Tools Tutorials"
+        },
+        {
+          "id": "sidebar-recent",
+          "tagName": "div",
+          "className": "sidebar-recent",
+          "boundingBox": { "x": 976, "y": 344, "width": 224, "height": 112 },
+          "visible": true,
+          "children": [],
+          "attributes": {},
+          "textContent": "Recent Posts: Getting Started with WIGSS, AI-Powered Refactoring"
+        }
+      ],
+      "attributes": { "role": "complementary" },
+      "textContent": ""
+    },
+    {
+      "id": "footer",
+      "tagName": "footer",
+      "className": "footer",
+      "boundingBox": { "x": 0, "y": 464, "width": 1280, "height": 200 },
+      "visible": true,
+      "children": [
+        {
+          "id": "footer-content",
+          "tagName": "div",
+          "className": "footer-content",
+          "boundingBox": { "x": 16, "y": 480, "width": 1248, "height": 120 },
+          "visible": true,
+          "children": [],
+          "attributes": {},
+          "textContent": "WIGSS Demo - Built by Team WIGSS (WIGTN Crew)"
+        },
+        {
+          "id": "footer-links",
+          "tagName": "div",
+          "className": "footer-links",
+          "boundingBox": { "x": 16, "y": 616, "width": 1248, "height": 32 },
+          "visible": true,
+          "children": [],
+          "attributes": {},
+          "textContent": "Privacy Policy | Terms of Service | Contact"
+        }
+      ],
+      "attributes": {},
+      "textContent": ""
+    }
+  ],
+  "sourceFiles": [
+    "src/app/page.tsx",
+    "src/components/Navbar.tsx",
+    "src/components/CardGrid.tsx",
+    "src/components/Card.tsx",
+    "src/components/Sidebar.tsx",
+    "src/components/Footer.tsx"
+  ],
+  "components": [
+    {
+      "id": "comp-navbar",
+      "name": "Main Navbar",
+      "type": "navbar",
+      "elementIds": ["navbar", "navbar-logo", "navbar-links"],
+      "boundingBox": { "x": 0, "y": 0, "width": 1280, "height": 64 },
+      "sourceFile": "src/components/Navbar.tsx",
+      "reasoning": "Top navigation bar with logo and links"
+    },
+    {
+      "id": "comp-card-grid",
+      "name": "Card Grid",
+      "type": "grid",
+      "elementIds": ["card-grid"],
+      "boundingBox": { "x": 0, "y": 64, "width": 960, "height": 400 },
+      "sourceFile": "src/components/CardGrid.tsx",
+      "reasoning": "3-column grid layout containing cards"
+    },
+    {
+      "id": "comp-card-1",
+      "name": "Card 1",
+      "type": "card",
+      "elementIds": ["card-1", "card-1-img", "card-1-title", "card-1-desc"],
+      "boundingBox": { "x": 16, "y": 80, "width": 296, "height": 320 },
+      "sourceFile": "src/components/Card.tsx",
+      "reasoning": "Content card in grid with image, title, and description"
+    },
+    {
+      "id": "comp-card-2",
+      "name": "Card 2",
+      "type": "card",
+      "elementIds": ["card-2", "card-2-img", "card-2-title", "card-2-desc"],
+      "boundingBox": { "x": 328, "y": 80, "width": 296, "height": 320 },
+      "sourceFile": "src/components/Card.tsx",
+      "reasoning": "Content card in grid with image, title, and description"
+    },
+    {
+      "id": "comp-card-3",
+      "name": "Card 3",
+      "type": "card",
+      "elementIds": ["card-3", "card-3-img", "card-3-title", "card-3-desc"],
+      "boundingBox": { "x": 648, "y": 80, "width": 296, "height": 320 },
+      "sourceFile": "src/components/Card.tsx",
+      "reasoning": "Content card in grid with image, title, and description"
+    },
+    {
+      "id": "comp-sidebar",
+      "name": "Sidebar",
+      "type": "sidebar",
+      "elementIds": ["sidebar", "sidebar-title", "sidebar-list", "sidebar-recent"],
+      "boundingBox": { "x": 960, "y": 72, "width": 256, "height": 400 },
+      "sourceFile": "src/components/Sidebar.tsx",
+      "reasoning": "Right sidebar with categories and recent posts. Note: 8px vertical offset from main content"
+    },
+    {
+      "id": "comp-footer",
+      "name": "Footer",
+      "type": "footer",
+      "elementIds": ["footer", "footer-content", "footer-links"],
+      "boundingBox": { "x": 0, "y": 464, "width": 1280, "height": 200 },
+      "sourceFile": "src/components/Footer.tsx",
+      "reasoning": "Page footer with excessive height (200px)"
+    }
+  ],
+  "suggestions": [
+    {
+      "id": "sug-1",
+      "title": "카드 간격 불균일 수정",
+      "description": "Card 1-2 간격 16px, Card 2-3 간격 24px → 16px로 통일 권장",
+      "confidence": 92,
+      "changes": [
+        {
+          "componentId": "comp-card-3",
+          "type": "move",
+          "from": { "x": 648, "y": 80 },
+          "to": { "x": 640, "y": 80 }
+        }
+      ]
+    },
+    {
+      "id": "sug-2",
+      "title": "사이드바 정렬 수정",
+      "description": "Sidebar가 메인 콘텐츠 대비 8px 아래로 어긋나 있음 → 상단 정렬 맞춤 권장",
+      "confidence": 88,
+      "changes": [
+        {
+          "componentId": "comp-sidebar",
+          "type": "move",
+          "from": { "x": 960, "y": 72 },
+          "to": { "x": 960, "y": 64 }
+        }
+      ]
+    },
+    {
+      "id": "sug-3",
+      "title": "푸터 높이 축소",
+      "description": "Footer 높이 200px는 콘텐츠 대비 과도 → 120px 권장",
+      "confidence": 85,
+      "changes": [
+        {
+          "componentId": "comp-footer",
+          "type": "resize",
+          "from": { "width": 1280, "height": 200 },
+          "to": { "width": 1280, "height": 120 }
+        }
+      ]
+    }
+  ]
+}
