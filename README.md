@@ -10,7 +10,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
 [![Claude API](https://img.shields.io/badge/Claude_API-Tool_Use-D97757?style=for-the-badge&logo=anthropic&logoColor=white)](https://docs.anthropic.com/)
-[![Puppeteer](https://img.shields.io/badge/Puppeteer-Headless-40B5A4?style=for-the-badge&logo=puppeteer&logoColor=white)](https://pptr.dev/)
+[![Playwright](https://img.shields.io/badge/Playwright-Locator-2EAD33?style=for-the-badge&logo=playwright&logoColor=white)](https://playwright.dev/)
 [![Zustand](https://img.shields.io/badge/Zustand-State-433E38?style=for-the-badge&logo=react&logoColor=white)](https://zustand-demo.pmnd.rs/)
 
 [Korean (한국어)](README.ko.md) | **English**
@@ -67,8 +67,8 @@ No new code generated from scratch. Your existing codebase is refactored.
 ```
 Browser (localhost:4000)
 ├── Floating Toolbar
-├── Visual Editor (iframe + overlay)
-│   └── Drag/resize overlays (actual page doesn't move)
+├── Visual Editor (iframe + fabric.js Canvas)
+│   └── Object-based drag/resize (actual page doesn't move)
 ├── Agent Panel
 │   ├── Real-time Feedback [Apply] [Dismiss]
 │   ├── Chat (ask / delegate / instruct)
@@ -79,7 +79,7 @@ Browser (localhost:4000)
 WIGSS Agent (Node.js, event-driven)
 ├── OpenAI GPT-4o — observe, detect, suggest, feedback, chat, responsive
 ├── Claude API — code refactoring, self-verification
-├── Puppeteer — DOM scan, verification re-render
+├── Playwright — DOM scan, verification re-render
 ├── chokidar — file change detection
 └── fs — source code read/write
 ```
@@ -91,11 +91,11 @@ WIGSS Agent (Node.js, event-driven)
 | **Framework** | Next.js 14 (App Router) | Full-stack, API Routes |
 | **Language** | TypeScript | Type safety |
 | **Styling** | Tailwind CSS | Rapid UI development |
-| **Visual Editor** | iframe + overlay divs | Live page with draggable components |
-| **Drag/Resize** | interact.js | Component manipulation |
+| **Visual Editor** | iframe + fabric.js Canvas | Live page with draggable components |
+| **Drag/Resize** | fabric.js | Object-based component manipulation |
 | **State** | Zustand | Component state + change tracking |
 | **AI** | Claude API (Tool Use) | Component detection + refactoring |
-| **DOM Scan** | Puppeteer | Headless Chrome rendering |
+| **DOM Scan** | Playwright | Browser automation |
 | **File I/O** | Node.js fs | Source code read/write |
 
 ## Communication
@@ -177,9 +177,9 @@ npx wigss --port 3000
 
 ```
 docs/
-├── prd/PRD_wigss.md           # Product Requirements (v5.0)
+├── prd/PRD_wigss.md           # Product Requirements (v5.1)
 ├── todo_plan/PLAN_wigss.md    # Execution Plan (D-1 / D-Day)
-└── ARCHITECTURE.md            # System Architecture (v2.0)
+└── ARCHITECTURE.md            # System Architecture (v2.1)
 ```
 
 ## License

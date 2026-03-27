@@ -1,8 +1,8 @@
 # WIGSS PRD (Style Shaper)
 
-> **Version**: 5.0
+> **Version**: 5.1
 > **Created**: 2026-03-26
-> **Updated**: 2026-03-28 (WebSocket 에이전트, 이벤트 기반, 채팅 인터페이스, 하이브리드 AI)
+> **Updated**: 2026-03-28 (fabric.js Canvas, Playwright, WebSocket 에이전트, 하이브리드 AI, 채팅)
 > **Status**: Final
 > **Hackathon**: 2026-03-28 (Trae.ai 주관, 주제: "에이전트")
 > **Team**: Team WIGSS (WIGTN Crew)
@@ -73,7 +73,7 @@ npx wigss --port 3000     ← 이 한 줄이면 끝
 |------|------|
 | CLI 진입점 (`npx wigss`) | GUI 설치 프로그램 |
 | WebSocket 기반 항시 에이전트 | 5초마다 폴링 방식 |
-| iframe + 오버레이 시각적 편집기 | 3D/애니메이션 편집 |
+| iframe + fabric.js Canvas 시각적 편집기 | 3D/애니메이션 편집 |
 | 채팅 인터페이스 (의견 요청/위임/지시) | 음성 인터페이스 |
 | OpenAI (관찰/제안) + Claude (리팩토링) | 단일 모델 |
 | 기존 소스코드 리팩토링 | 새 프로젝트 생성 |
@@ -145,7 +145,7 @@ Scenario: 컴포넌트 자동 인식
   Given WIGSS 에디터가 열려있다
   When "스캔" 버튼을 클릭한다
   Then 에이전트가 DOM을 분석하여 컴포넌트를 자동 인식한다
-  And 각 컴포넌트에 오버레이(투명 div + 점선 테두리)가 표시된다
+  And 각 컴포넌트에 오버레이(fabric.js Canvas 객체 + 점선 테두리)가 표시된다
   And 실제 페이지는 iframe으로 뒤에 보인다
 
 Scenario: 드래그 후 실시간 피드백
@@ -203,13 +203,13 @@ Scenario: 반응형 자동 변환
 | FR-011 | 에이전트 이벤트 리스너: 사용자 액션 (WebSocket), 파일 변경 (chokidar), 내부 트리거 | P0 | FR-010 |
 | FR-012 | 에이전트 히스토리 관리 (대화 맥락 유지) | P0 | FR-010 |
 | **DOM 스캔 & 컴포넌트 인식** |
-| FR-020 | Puppeteer headless DOM 스캔 + 스크린샷 | P0 | FR-010 |
+| FR-020 | Playwright headless DOM 스캔 + 스크린샷 | P0 | FR-010 |
 | FR-021 | 스마트 필터링 (invisible/script/style 제외, max 200개) | P0 | FR-020 |
 | FR-022 | **GPT-4o가 DOM → 컴포넌트 경계 자동 인식** (function calling) | P0 | FR-021 |
 | FR-023 | 인식된 컴포넌트별 바운딩 박스 + 소스 파일 매핑 | P0 | FR-022 |
-| FR-024 | 데모 모드 (사전 캐싱, Puppeteer 실패 시 fallback) | P0 | FR-020 |
+| FR-024 | 데모 모드 (사전 캐싱, Playwright 실패 시 fallback) | P0 | FR-020 |
 | **시각적 편집 (오버레이)** |
-| FR-030 | iframe (실제 페이지) + 투명 오버레이 div (편집 레이어) | P0 | FR-023 |
+| FR-030 | iframe (실제 페이지) + fabric.js Canvas (편집 레이어) | P0 | FR-023 |
 | FR-031 | 오버레이 컴포넌트 드래그 이동 (실제 페이지는 안 움직임) | P0 | FR-030 |
 | FR-032 | 오버레이 컴포넌트 리사이즈 (핸들 드래그) | P0 | FR-030 |
 | FR-033 | 컴포넌트 선택 시 정보 표시 (이름, 위치, 크기, 소스 파일) | P1 | FR-030 |
@@ -233,11 +233,11 @@ Scenario: 반응형 자동 변환
 | FR-071 | 반응형 결과를 사용자가 추가 조정 가능 | P1 | FR-070 |
 | **소스코드 리팩토링** |
 | FR-080 | 소스 경로 자동 감지 (cwd 기반) | P0 | FR-001 |
-| FR-081 | **[저장] → Claude API가 변경 delta → 소스코드 diff 생성** | P0 | FR-080 |
+| FR-081 | **[저장] → fabric.js toJSON() delta → Claude API가 소스코드 diff 생성** | P0 | FR-080 |
 | FR-082 | diff 미리보기 (before/after + 설명) | P0 | FR-081 |
 | FR-083 | [적용] → 소스 파일 수정 + 백업 | P0 | FR-082 |
 | **자기 검증** |
-| FR-090 | **적용 후 자동: Puppeteer 재렌더링 → 편집 의도와 비교** | P0 | FR-083 |
+| FR-090 | **적용 후 자동: Playwright 재렌더링 → 편집 의도와 비교** | P0 | FR-083 |
 | FR-091 | 불일치 → Claude가 자동 재수정 (최대 3회 루프) | P0 | FR-090 |
 | **에이전트 UX** |
 | FR-100 | Agent Panel: 실시간 피드백 + 채팅 + 에이전트 로그 통합 | P0 | FR-010 |
@@ -307,7 +307,7 @@ Scenario: 반응형 자동 변환
 │  │  실제 페이지 (배경)            │  │                         │ │
 │  │                               │  │ 실시간 피드백            │ │
 │  │  ┌─ 오버레이 ───────────────┐ │  │  ⚠️ "8px 어긋남" [적용] │ │
-│  │  │ 투명 div (드래그/리사이즈)│ │  │                         │ │
+│  │  │ fabric.js Canvas (객체 기반 드래그/리사이즈)│ │  │                         │ │
 │  │  │ 점선 테두리로 컴포넌트 표시│ │  │ 채팅                    │ │
 │  │  └──────────────────────────┘ │  │  🧑 "푸터 어떻게 하지?" │ │
 │  └───────────────────────────────┘  │  🤖 "높이 축소 제안..."  │ │
@@ -341,7 +341,7 @@ Scenario: 반응형 자동 변환
 │  └──────────────────────────────────────────────────────────────┘ │
 │                                                                   │
 │  ┌─ 로컬 도구 ─────────────────────────────────────────────────┐ │
-│  │  Puppeteer (DOM 스캔/검증)                                   │ │
+│  │  Playwright (DOM 스캔/검증)                                   │ │
 │  │  Node.js fs (소스 파일 읽기/쓰기)                             │ │
 │  │  chokidar (파일 변경 감지)                                    │ │
 │  └──────────────────────────────────────────────────────────────┘ │
@@ -352,7 +352,7 @@ Scenario: 반응형 자동 변환
 
 | 이벤트 | 트리거 | AI 호출 | 모델 |
 |--------|--------|---------|------|
-| 스캔 클릭 | 사용자 | DOM 스캔 (Puppeteer) → 컴포넌트 인식 | GPT-4o |
+| 스캔 클릭 | 사용자 | DOM 스캔 (Playwright) → 컴포넌트 인식 | GPT-4o |
 | 인식 완료 | 내부 자동 | 디자인 개선 제안 | GPT-4o |
 | 컴포넌트 선택 | 사용자 | 없음 (프론트엔드만) | - |
 | 드래그/리사이즈 중 | 사용자 | **없음** (60fps 유지) | - |
@@ -361,7 +361,7 @@ Scenario: 반응형 자동 변환
 | 제안 [적용] | 사용자 | **없음** (프론트엔드 즉시 적용) | - |
 | 모바일 보기 | 사용자 | 반응형 변환 | GPT-4o |
 | 저장 클릭 | 사용자 | 코드 리팩토링 | **Claude** |
-| 적용 완료 | 내부 자동 | 자기 검증 | Puppeteer + **Claude** |
+| 적용 완료 | 내부 자동 | 자기 검증 | Playwright + **Claude** |
 | 검증 실패 | 내부 자동 | 자동 재수정 (최대 3회) | **Claude** |
 | 소스 파일 변경 | chokidar | 알림만 ("다시 스캔?" — AI 호출 안 함) | - |
 
@@ -400,14 +400,14 @@ Scenario: 반응형 자동 변환
 |-------|-----------|------|
 | CLI | bin/cli.js + commander | npx 진입점, --port 파싱, cwd 감지 |
 | Frontend | Next.js 14 (App Router) | UI + WebSocket 클라이언트 |
-| Visual Editor | iframe + 오버레이 div | 실제 화면 + 편집 레이어 |
-| Drag/Resize | interact.js | 오버레이 드래그/리사이즈 |
+| Visual Editor | iframe + fabric.js Canvas | 객체 모델 — 드래그/리사이즈/선택 내장 + toJSON() |
+| Canvas Editor | fabric.js | 객체 기반 Canvas — 드래그/리사이즈/선택 내장, toJSON() 직렬화 |
 | State | Zustand | editor-store + agent-store |
 | Styling | Tailwind CSS | UI 스타일링 |
 | WebSocket | ws (npm) | 서버측 WebSocket |
 | AI (관찰/제안/채팅) | OpenAI GPT-4o | Chat Completions + function calling |
 | AI (리팩토링/검증) | Claude API (Anthropic) | Messages API + tool use |
-| DOM Scan | Puppeteer | Headless Chrome |
+| DOM Scan/Verify | Playwright | locator 기반, 자동 대기, 동적 페이지 안정적 |
 | File Watch | chokidar | 소스 파일 변경 감지 |
 | File I/O | Node.js fs | 소스 읽기/쓰기 |
 | Browser Open | open (npm) | CLI에서 브라우저 오픈 |
@@ -436,8 +436,8 @@ wigss/
 │   │       └── apply/route.ts          # 소스 파일 수정 (REST, 안전 위해)
 │   ├── components/
 │   │   ├── editor/
-│   │   │   ├── VisualEditor.tsx        # iframe + 오버레이
-│   │   │   ├── ComponentOverlay.tsx    # 드래그/리사이즈 핸들
+│   │   │   ├── VisualEditor.tsx        # iframe + fabric.js Canvas
+│   │   │   ├── CanvasObjects.tsx       # fabric 객체 (Rect/Image) 관리
 │   │   │   └── FloatingToolbar.tsx     # 플로팅 툴바
 │   │   ├── panels/
 │   │   │   ├── AgentPanel.tsx          # 피드백 + 채팅 + 로그 통합
@@ -455,7 +455,7 @@ wigss/
 │   │   │   ├── openai-client.ts        # OpenAI GPT-4o (관찰/제안/채팅)
 │   │   │   ├── claude-client.ts        # Claude API (리팩토링/검증)
 │   │   │   └── tools.ts               # function calling 도구 정의
-│   │   ├── puppeteer.ts
+│   │   ├── playwright.ts
 │   │   ├── file-utils.ts
 │   │   └── ws-server.ts               # WebSocket 서버
 │   ├── types/
@@ -593,6 +593,8 @@ interface EditorStore {
   viewportMode: 'desktop' | 'mobile';
   mobileComponents: DetectedComponent[] | null;
   diffs: CodeDiff[];
+  canvasSnapshots: object[];       // fabric.js canvas.toJSON() 스냅샷 (history/undo용)
+  canvasSnapshotIndex: number;
   history: ComponentChange[][];
   historyIndex: number;
 }
@@ -647,7 +649,7 @@ class WIGSSAgent {
     this.ws.on('message', async (event) => {
       switch (event.type) {
         case 'scan':
-          const dom = await puppeteer.scan(event.url);
+          const dom = await playwright.scan(event.url);
           const components = await this.openai('detect', dom);
           this.ws.send({ type: 'components_detected', components });
           // 자동 연쇄: 제안
@@ -680,6 +682,7 @@ class WIGSSAgent {
 
         case 'save':
           // 리팩토링 (Claude)
+          // fabric.js canvas.toJSON()으로 구조화된 JSON diff 생성
           const diffs = await this.claude('refactor', event.changes);
           this.ws.send({ type: 'diff_preview', diffs });
           break;
@@ -701,7 +704,7 @@ class WIGSSAgent {
 
   async verifyLoop(expected, maxRetries = 3) {
     for (let i = 0; i < maxRetries; i++) {
-      const actual = await puppeteer.scan(url);
+      const actual = await playwright.scan(url);
       const mismatches = compare(expected, actual);
       if (mismatches.length === 0) {
         this.ws.send({ type: 'verification_result', passed: true });
@@ -794,11 +797,11 @@ const openaiTools = [
 
 | 위험 | Plan A | Plan B | Plan C |
 |------|--------|--------|--------|
-| Puppeteer 불가 | Headless Chrome | 캐싱 JSON | 데모 모드 |
+| Playwright 불가 | Playwright (Chromium) | 캐싱 JSON | 데모 모드 |
 | OpenAI 불안정 | GPT-4o | GPT-4o-mini | 사전 캐싱 |
 | Claude 불안정 | Claude Sonnet | Claude Haiku | diff 텍스트 가이드 |
 | WebSocket 불안정 | ws | polling fallback | REST API |
-| iframe 이슈 | iframe + overlay | 스크린샷 + overlay | Canvas |
+| iframe 이슈 | iframe + fabric.js Canvas | 스크린샷 + fabric.js Canvas | DOM overlay fallback |
 
 ### 9.2 시간 Fallback
 

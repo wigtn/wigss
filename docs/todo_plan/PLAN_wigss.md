@@ -1,6 +1,6 @@
 # Task Plan: WIGSS
 
-> **PRD**: docs/prd/PRD_wigss.md (v5.0)
+> **PRD**: docs/prd/PRD_wigss.md (v5.1)
 > **Updated**: 2026-03-28
 > **Status**: pending
 > **Hackathon**: 2026-03-28
@@ -20,14 +20,14 @@
 
 ### Phase 0: 환경 검증 + 스캐폴딩 (2h)
 
-- [ ] 0.1 Puppeteer 설치 + localhost 스캔 테스트 (DOM + 스크린샷)
+- [ ] 0.1 Playwright 설치 + localhost 스캔 테스트 (DOM + 스크린샷)
 - [ ] 0.2 OpenAI API function calling 테스트
 - [ ] 0.3 Claude API tool use 테스트
 - [ ] 0.4 WebSocket (ws) 서버-클라이언트 연결 PoC
-- [ ] 0.5 iframe + 오버레이 div 드래그/리사이즈 PoC (interact.js)
+- [ ] 0.5 iframe + fabric.js Canvas 드래그/리사이즈 PoC
 - [ ] 0.6 Next.js 14 프로젝트 생성 (pnpm, TypeScript, Tailwind)
 - [ ] 0.7 디렉토리 구조 생성 (PRD 6.5 기준)
-- [ ] 0.8 의존성 설치 (puppeteer, openai, @anthropic-ai/sdk, zustand, interact.js, ws, chokidar, commander, open)
+- [ ] 0.8 의존성 설치 (playwright, openai, @anthropic-ai/sdk, zustand, fabric, ws, chokidar, commander, open)
 - [ ] 0.9 .env.local (OPENAI_API_KEY + ANTHROPIC_API_KEY) + CLAUDE.md
 - [ ] 0.10 bin/cli.js 기본 구조 (commander --port, cwd 감지, open)
 
@@ -48,7 +48,7 @@
 - [ ] 1.1 WebSocket 서버 (ws/route.ts 또는 별도 ws-server.ts)
 - [ ] 1.2 에이전트 루프 (lib/agent/agent-loop.ts) — 이벤트 기반
 - [ ] 1.3 OpenAI 클라이언트 (lib/agent/openai-client.ts) — function calling
-- [ ] 1.4 Puppeteer DOM 스캔 + 스크린샷 + 소스 파일 목록
+- [ ] 1.4 Playwright DOM 스캔 + 스크린샷 + 소스 파일 목록
 - [ ] 1.5 GPT-4o 컴포넌트 자동 인식 (identify_component tool)
 - [ ] 1.6 GPT-4o 디자인 제안 (스캔 후 자동 연쇄)
 - [ ] 1.7 Zustand 스토어 (editor-store + agent-store)
@@ -70,7 +70,7 @@
 
 ### Phase 2: 시각적 편집 + 실시간 피드백 + 채팅 (3h) ★핵심★
 
-- [ ] 2.1 VisualEditor: iframe(localhost:3001) + 투명 오버레이
+- [ ] 2.1 VisualEditor: iframe(localhost:3001) + fabric.js Canvas
 - [ ] 2.2 ComponentOverlay: 컴포넌트별 점선 테두리 + 드래그/리사이즈 핸들
 - [ ] 2.3 드래그 이동 (오버레이만, 실제 페이지 안 움직임)
 - [ ] 2.4 리사이즈 (핸들 드래그)
@@ -92,7 +92,7 @@
 - [ ] 3.2 [저장] → Claude API로 변경 delta → 소스코드 diff 생성
 - [ ] 3.3 DiffPreview 패널 (before/after + 설명)
 - [ ] 3.4 POST /api/apply → 소스 파일 수정 + 백업 (REST, 안전)
-- [ ] 3.5 자기 검증 루프: Puppeteer 재렌더링 → 비교 → Claude 재수정 (최대 3회)
+- [ ] 3.5 자기 검증 루프: Playwright 재렌더링 → 비교 → Claude 재수정 (최대 3회)
 - [ ] 3.6 AgentPanel에 검증 상태 표시
 - [ ] 3.7 chokidar 파일 변경 감지 → "다시 스캔?" 알림
 
@@ -131,7 +131,7 @@
 
 | 시간 | 작업 |
 |------|------|
-| 00~01h | 2.1~2.4 (iframe + 오버레이 + 드래그/리사이즈) |
+| 00~01h | 2.1~2.4 (iframe + fabric.js Canvas + 드래그/리사이즈) |
 | 01~02h | 2.5~2.6 (변경 추적 + 실시간 피드백) |
 | 02~03h | 2.7~2.10 (채팅 + 반응형) |
 | 03~04h | 3.1~3.3 (Claude 리팩토링 + diff) |

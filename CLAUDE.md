@@ -11,10 +11,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **CLI entry**: `bin/cli.js` — `npx wigss --port <port>`, auto-detects cwd as source path
 - **Frontend**: Next.js 14 (App Router) + Tailwind CSS + Zustand
 - **Communication**: WebSocket (always connected, event-driven)
-- **Visual Editor**: iframe (target page) + overlay divs (drag/resize handles)
+- **Visual Editor**: iframe (target page) + fabric.js Canvas (object-based drag/resize)
 - **AI (observe/suggest/chat)**: OpenAI GPT-4o (Chat Completions + function calling)
 - **AI (refactor/verify)**: Claude API (Anthropic Messages + tool use)
-- **DOM Scan**: Puppeteer (headless Chrome)
+- **DOM Scan**: Playwright (headless Chrome)
 - **File Watch**: chokidar
 - **File I/O**: Node.js fs for source code read/write
 
@@ -28,7 +28,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `src/components/panels/` — AgentPanel, ChatInterface, FeedbackCards, DiffPreview
 - `src/stores/` — Zustand (editor-store + agent-store)
 - `src/lib/agent/` — Agent loop, OpenAI client, Claude client, tools
-- `src/lib/` — puppeteer, file-utils, ws-server
+- `src/lib/` — playwright, file-utils, ws-server
 
 ## Conventions
 
@@ -39,6 +39,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - API responses (REST): `{ success: boolean, data: {...} }` or `{ success: false, error: { code, message } }`
 - Component types: navbar, header, hero, grid, card, sidebar, footer, section, form, modal
 - AI calls: OpenAI for fast observe/suggest/chat, Claude for code refactoring/verification
+- Canvas state tracked via fabric.js toJSON() snapshots
 
 ## Commands
 

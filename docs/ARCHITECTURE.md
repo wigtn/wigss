@@ -1,8 +1,8 @@
 # WIGSS Architecture
 
-> **Version**: 2.0
+> **Version**: 2.1
 > **Updated**: 2026-03-28 (WebSocket 에이전트, 이벤트 기반, 하이브리드 AI, 채팅)
-> **PRD Reference**: docs/prd/PRD_wigss.md (v5.0)
+> **PRD Reference**: docs/prd/PRD_wigss.md (v5.1)
 
 ---
 
@@ -26,9 +26,9 @@ $ npx wigss --port 3000
 │  ┌─ iframe ──────────────┐  ┌─ Agent Panel ──────────────┐  │
 │  │ 실제 페이지 (배경)      │  │ 실시간 피드백              │  │
 │  │                        │  │  ⚠️ "8px 어긋남" [적용]    │  │
-│  │ ┌─ 오버레이 ─────────┐│  │                            │  │
+│  │ ┌─ fabric.js Canvas ┐│  │                            │  │
 │  │ │ 드래그/리사이즈 핸들 ││  │ 채팅                       │  │
-│  │ │ (투명 div)         ││  │  🧑 "푸터 어떻게?"         │  │
+│  │ │ (object-based)     ││  │  🧑 "푸터 어떻게?"         │  │
 │  │ └────────────────────┘│  │  🤖 "높이 축소 제안"       │  │
 │  └────────────────────────┘  │                            │  │
 │                               │ 에이전트 로그              │  │
@@ -54,7 +54,7 @@ $ npx wigss --port 3000
 │  │  피드백/채팅/반응형)│  │  검증 수정)      │                  │
 │  └──────────────────┘  └──────────────────┘                  │
 │                                                               │
-│  Puppeteer (스캔/검증)  │  fs (파일 읽기/쓰기)  │  chokidar    │
+│  Playwright (스캔/검증)  │  fs (파일 읽기/쓰기)  │  chokidar    │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -69,7 +69,7 @@ $ npx wigss --port 3000
 | 제안 [적용] | 사용자 | **없음** (즉시 적용) | - |
 | 모바일 보기 | 사용자 | 반응형 변환 | GPT-4o |
 | 저장 | 사용자 | 코드 리팩토링 | **Claude** |
-| 적용 완료 | 내부 자동 | 자기 검증 | Puppeteer + **Claude** |
+| 적용 완료 | 내부 자동 | 자기 검증 | Playwright + **Claude** |
 | 검증 실패 | 내부 자동 | 자동 재수정 (최대 3회) | **Claude** |
 | 파일 변경 | chokidar | 알림만 (AI 없음) | - |
 
@@ -100,9 +100,9 @@ Agent → Frontend:
 ```
 iframe (실제 페이지) — 보이기만 함, 터치 불가
       ↑
-오버레이 div (투명) — 드래그/리사이즈 가능
+fabric.js Canvas — object-based drag/resize, toJSON() serialization
       ↑
-사용자가 오버레이를 조작 → 실제 페이지는 안 움직임
+사용자가 Canvas 객체를 조작 → 실제 페이지는 안 움직임
 ```
 
 ## 6. Agent Panel 구조
