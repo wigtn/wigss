@@ -1,9 +1,7 @@
----
-
 # Task Plan: WIGSS
 
-> **PRD**: docs/prd/PRD_wigss.md (v4.0)
-> **Updated**: 2026-03-27
+> **PRD**: docs/prd/PRD_wigss.md (v5.0)
+> **Updated**: 2026-03-28
 > **Status**: pending
 > **Hackathon**: 2026-03-28
 > **Team**: Team WIGSS (WIGTN Crew)
@@ -22,96 +20,94 @@
 
 ### Phase 0: 환경 검증 + 스캐폴딩 (2h)
 
-- [ ] 0.1 Puppeteer 설치 + localhost 스캔 테스트 (DOM 트리 + 스크린샷)
-- [ ] 0.2 Claude API Tool Use 테스트 (identify_component 도구)
-- [ ] 0.3 iframe + 오버레이 div 드래그/리사이즈 PoC
-- [ ] 0.4 Next.js 14 프로젝트 생성 (pnpm, TypeScript, Tailwind, App Router)
-- [ ] 0.5 디렉토리 구조 생성 (PRD 6.4 기준)
-- [ ] 0.6 의존성 설치 (puppeteer, @anthropic-ai/sdk, zustand, interact.js, open, commander)
-- [ ] 0.7 .env.local + CLAUDE.md 설정
-- [ ] 0.8 bin/cli.js 기본 구조 (commander로 --port 파싱, cwd 감지)
+- [ ] 0.1 Puppeteer 설치 + localhost 스캔 테스트 (DOM + 스크린샷)
+- [ ] 0.2 OpenAI API function calling 테스트
+- [ ] 0.3 Claude API tool use 테스트
+- [ ] 0.4 WebSocket (ws) 서버-클라이언트 연결 PoC
+- [ ] 0.5 iframe + 오버레이 div 드래그/리사이즈 PoC (interact.js)
+- [ ] 0.6 Next.js 14 프로젝트 생성 (pnpm, TypeScript, Tailwind)
+- [ ] 0.7 디렉토리 구조 생성 (PRD 6.5 기준)
+- [ ] 0.8 의존성 설치 (puppeteer, openai, @anthropic-ai/sdk, zustand, interact.js, ws, chokidar, commander, open)
+- [ ] 0.9 .env.local (OPENAI_API_KEY + ANTHROPIC_API_KEY) + CLAUDE.md
+- [ ] 0.10 bin/cli.js 기본 구조 (commander --port, cwd 감지, open)
 
-**판단**: 0.1~0.3 실패 시 PRD 9.1 Fallback 참조
+**판단**: 0.1~0.5 실패 시 PRD 9.1 Fallback 참조
 
 ### Phase 0.5: demo-target 생성 (1h)
 
-- [ ] 0.9 demo-target/ Next.js + Tailwind 프로젝트 생성
-- [ ] 0.10 Navbar 컴포넌트 (flex, h-16, 의도적으로 높이 비효율적)
-- [ ] 0.11 CardGrid + Card 3개 (grid-cols-3, 의도적 간격 불균일 16px/24px)
-- [ ] 0.12 Sidebar 컴포넌트 (의도적 상단 정렬 8px 어긋남)
-- [ ] 0.13 Footer 컴포넌트
-- [ ] 0.14 localhost:3001에서 서빙 확인
-- [ ] 0.15 사전 스캔 결과 캐싱 (DOM JSON + 스크린샷 + 컴포넌트 인식 결과)
+- [ ] 0.11 demo-target/ Next.js + Tailwind 프로젝트
+- [ ] 0.12 Navbar (h-16, 의도적 높이 비효율)
+- [ ] 0.13 CardGrid + Card 3개 (grid-cols-3, 간격 불균일 16px/24px)
+- [ ] 0.14 Sidebar (상단 정렬 8px 어긋남)
+- [ ] 0.15 Footer (높이 과도 200px)
+- [ ] 0.16 localhost:3001 서빙 확인
+- [ ] 0.17 사전 스캔 결과 캐싱 (데모 모드용)
 
-### Phase 1: DOM 스캔 + 컴포넌트 인식 + 제안 (3h) ★Agent 핵심★
+### Phase 1: 에이전트 코어 + 컴포넌트 인식 (3h) ★핵심★
 
-- [ ] 1.1 POST /api/scan — Puppeteer DOM 추출 + 스크린샷 + 소스 파일 목록
-- [ ] 1.2 URL 유효성 검사 (SSRF 방어, localhost만)
-- [ ] 1.3 요소 스마트 필터링 (max 200개)
-- [ ] 1.4 데모 모드 분기 (DEMO_MODE → 캐싱 JSON)
-- [ ] 1.5 POST /api/detect — Claude Tool Use로 컴포넌트 자동 인식
-      - identify_component / analyze_layout_pattern / map_to_source
-      - 시맨틱 태그 + CSS 패턴 + 반복 구조 분석
-      - reasoning 기록
-- [ ] 1.6 POST /api/suggest — 레이아웃 분석 → 개선안 제안
-      - 간격/정렬/크기 분석 + confidence 점수
+- [ ] 1.1 WebSocket 서버 (ws/route.ts 또는 별도 ws-server.ts)
+- [ ] 1.2 에이전트 루프 (lib/agent/agent-loop.ts) — 이벤트 기반
+- [ ] 1.3 OpenAI 클라이언트 (lib/agent/openai-client.ts) — function calling
+- [ ] 1.4 Puppeteer DOM 스캔 + 스크린샷 + 소스 파일 목록
+- [ ] 1.5 GPT-4o 컴포넌트 자동 인식 (identify_component tool)
+- [ ] 1.6 GPT-4o 디자인 제안 (스캔 후 자동 연쇄)
 - [ ] 1.7 Zustand 스토어 (editor-store + agent-store)
-- [ ] 1.8 UI 레이아웃 — 플로팅 툴바 + VisualEditor(중앙) + AgentPanel(사이드)
-- [ ] 1.9 AgentPanel — 상태 + 인식 로그 + 제안 카드 ([적용]/[무시])
-- [ ] 1.10 제안 [적용] 시 컴포넌트 자동 재배치
+- [ ] 1.8 UI: 플로팅 툴바 + VisualEditor + AgentPanel
+- [ ] 1.9 AgentPanel: 상태 표시 + 인식 로그 + 제안 카드 [적용]/[무시]
+- [ ] 1.10 데모 모드 분기
 
-**검증**: URL → 스캔 → 컴포넌트 인식 → 제안 표시 → 제안 적용
-**커밋**: `feat: DOM scan + AI component detection + design suggestions`
+**검증**: URL → 스캔 → WebSocket으로 컴포넌트 인식 → 제안 표시
+**커밋**: `feat: WebSocket agent + component detection + design suggestions`
 
 ### D-1 저녁: E2E 검증
 
-- [ ] demo-target → 스캔 → 인식 → 제안 풀 플로우
-- [ ] 에러 케이스 + DEMO_MODE 확인
+- [ ] demo-target → 에이전트 연결 → 스캔 → 인식 → 제안
+- [ ] 에러 케이스 + 데모 모드 확인
 
 ---
 
 ## D-Day (3/28) — 해커톤
 
-### Phase 2: 시각적 편집기 + 반응형 변환 (2.5h)
+### Phase 2: 시각적 편집 + 실시간 피드백 + 채팅 (3h) ★핵심★
 
-- [ ] 2.1 VisualEditor — iframe(localhost:3001) + 투명 오버레이
-- [ ] 2.2 ComponentOverlay — 컴포넌트별 바운딩 박스 오버레이
-- [ ] 2.3 컴포넌트 선택 (클릭 → 하이라이트)
-- [ ] 2.4 컴포넌트 드래그 이동 (interact.js)
-- [ ] 2.5 컴포넌트 리사이즈 (핸들 드래그)
-- [ ] 2.6 변경 delta 추적 (Zustand editor-store)
-- [ ] 2.7 선택 시 정보 표시 (이름, 위치, 크기, 소스 파일)
-- [ ] 2.8 POST /api/responsive — AI가 375px 기준 자동 재배치
-- [ ] 2.9 [모바일 보기] 버튼 → 오버레이 업데이트
-- [ ] 2.10 반응형 결과 추가 조정 가능
+- [ ] 2.1 VisualEditor: iframe(localhost:3001) + 투명 오버레이
+- [ ] 2.2 ComponentOverlay: 컴포넌트별 점선 테두리 + 드래그/리사이즈 핸들
+- [ ] 2.3 드래그 이동 (오버레이만, 실제 페이지 안 움직임)
+- [ ] 2.4 리사이즈 (핸들 드래그)
+- [ ] 2.5 변경 delta 추적 (Zustand editor-store)
+- [ ] 2.6 드래그/리사이즈 끝 → WebSocket → GPT-4o 실시간 피드백
+      - 크기 일관성, 간격 균일성, 정렬, 최소 크기, 겹침 검토
+      - 피드백 카드 [적용]/[무시] (적용 시 AI 재호출 없이 즉시)
+- [ ] 2.7 ChatInterface: 채팅 입력창 + 메시지 표시
+- [ ] 2.8 의견 요청 모드: "푸터 어떻게 하지?" → 분석 + 제안
+- [ ] 2.9 위임 모드: "알아서 해줘" → 계획 표시 → [진행] → 오버레이 자동 수정
+- [ ] 2.10 [모바일 보기] → GPT-4o 반응형 자동 변환 (375px)
 
-**검증**: 드래그/리사이즈 + [모바일 보기] → 에이전트 자동 재배치
-**커밋**: `feat: Visual editor + responsive auto-conversion`
+**검증**: 드래그 → 피드백 표시 + 채팅 대화 + 모바일 변환
+**커밋**: `feat: Visual editor + realtime feedback + chat interface`
 
-### Phase 3: 리팩토링 + 자기 검증 루프 (2.5h) ★Agent 핵심★
+### Phase 3: 리팩토링 + 자기 검증 (2h) ★핵심★
 
-- [ ] 3.1 POST /api/refactor — 변경 delta → 소스코드 diff
-      - Tailwind 클래스 변경 + 연쇄 영향 분석 + explanation
-- [ ] 3.2 DiffPreview 패널 — before/after + 설명
-- [ ] 3.3 POST /api/apply — diff → 소스 파일 적용 (백업)
-- [ ] 3.4 POST /api/verify — 자기 검증 루프
-      - Puppeteer 재렌더링 → 비교 (허용 오차 4px)
-      - 불일치 → Claude diff 재생성 → 재적용 → 재검증 (최대 3회)
-- [ ] 3.5 AgentPanel에 검증 상태 표시
-- [ ] 3.6 저장→리팩토링→검증 E2E 플로우
+- [ ] 3.1 Claude 클라이언트 (lib/agent/claude-client.ts)
+- [ ] 3.2 [저장] → Claude API로 변경 delta → 소스코드 diff 생성
+- [ ] 3.3 DiffPreview 패널 (before/after + 설명)
+- [ ] 3.4 POST /api/apply → 소스 파일 수정 + 백업 (REST, 안전)
+- [ ] 3.5 자기 검증 루프: Puppeteer 재렌더링 → 비교 → Claude 재수정 (최대 3회)
+- [ ] 3.6 AgentPanel에 검증 상태 표시
+- [ ] 3.7 chokidar 파일 변경 감지 → "다시 스캔?" 알림
 
-**검증**: 편집 → 저장 → diff → 적용 → 자기검증 → (불일치 시) 자동 재수정 → 통과
-**커밋**: `feat: AI refactoring + self-verification loop`
+**검증**: 편집 → 저장 → diff → 적용 → 검증 → (불일치 시) 재수정 → 통과
+**커밋**: `feat: Claude refactoring + self-verification loop`
 
 ### Phase 4: Polish & Demo (2h)
 
-- [ ] 4.1 Undo/Redo (Cmd+Z / Cmd+Shift+Z)
-- [ ] 4.2 에러 핸들링 (toast + 재시도)
+- [ ] 4.1 Undo/Redo
+- [ ] 4.2 에러 핸들링 (toast + 재시도 + WebSocket 재연결)
 - [ ] 4.3 UI 폴리싱 (다크 모드, 오버레이 색상, 로고)
 - [ ] 4.4 bin/cli.js 완성 (commander, open, 포트 감지)
 - [ ] 4.5 데모 리허설 1회: 타이밍 (3분)
 - [ ] 4.6 데모 리허설 2회: 에러 케이스
-- [ ] 4.7 데모 리허설 3회: 발표 멘트 포함
+- [ ] 4.7 데모 리허설 3회: 발표 멘트
 - [ ] 4.8 Fallback 영상 녹화
 - [ ] 4.9 발표 자료 (1-2장)
 
@@ -126,35 +122,34 @@
 | 시간 | 작업 |
 |------|------|
 | 오전 | Phase 0 (환경 검증 + 스캐폴딩) |
-| 오후 전반 | Phase 0.5 (demo-target 생성) |
-| 오후 2~3.5h | 1.1~1.6 (API: scan + detect + suggest) |
-| 오후 3.5~5.5h | 1.7~1.10 (UI + AgentPanel + 제안 적용) |
+| 오후 전반 | Phase 0.5 (demo-target) |
+| 오후 2~3.5h | 1.1~1.5 (WebSocket + 에이전트 + 인식) |
+| 오후 3.5~5h | 1.6~1.10 (제안 + UI + AgentPanel) |
 | 저녁 | E2E 검증 |
 
 ### D-Day
 
 | 시간 | 작업 |
 |------|------|
-| 00~01h | 2.1~2.3 (iframe + 오버레이 + 선택) |
-| 01~02h | 2.4~2.7 (드래그/리사이즈 + 변경 추적) |
-| 02~02.5h | 2.8~2.10 (반응형 자동 변환) |
-| 02.5~03.5h | 3.1~3.2 (AI 리팩토링 + diff 미리보기) |
-| 03.5~04.5h | 3.3~3.5 (파일 적용 + 자기 검증 루프) |
-| 04.5~05h | 3.6 (E2E 플로우 테스트) |
+| 00~01h | 2.1~2.4 (iframe + 오버레이 + 드래그/리사이즈) |
+| 01~02h | 2.5~2.6 (변경 추적 + 실시간 피드백) |
+| 02~03h | 2.7~2.10 (채팅 + 반응형) |
+| 03~04h | 3.1~3.3 (Claude 리팩토링 + diff) |
+| 04~05h | 3.4~3.7 (적용 + 검증 루프 + 파일 감시) |
 | 05~05.5h | 4.1~4.4 (안정성 + CLI + UI) |
 | 05.5~06.5h | 4.5~4.7 (데모 리허설 3회) |
 | 06.5~07h | 4.8~4.9 (Fallback + 발표자료) |
 
-## 시간 부족 시 절삭 기준
+## 시간 부족 시 절삭
 
 | 남은 시간 | 절삭 | 보존 |
 |-----------|------|------|
 | 5h+ | 없음 | 전체 |
-| 3h | Phase 4, 반응형 | 편집 + 리팩토링 + 검증 |
-| 2h | Phase 3-4 | 스캔 + 인식 + 제안 + 편집 |
-| 1h | Phase 2-4 | 인식 + 제안 데모 + Fallback 영상 |
+| 3h | 반응형, 검증 | 편집 + 피드백 + 채팅 + 리팩토링 |
+| 2h | 리팩토링, 채팅 | 스캔 + 인식 + 편집 + 피드백 |
+| 1h | 편집 이후 | 인식 + 피드백 데모 + Fallback 영상 |
 
-**우선순위**: 컴포넌트 인식 > 디자인 제안 > 편집기 > 리팩토링 > 자기검증 > 반응형
+**우선순위**: 인식 > 피드백 > 채팅 > 편집기 > 리팩토링 > 검증 > 반응형
 
 ---
 
@@ -162,7 +157,7 @@
 
 | Metric | Value |
 |--------|-------|
-| Total Tasks | 0/48 |
+| Total Tasks | 0/50 |
 | Current Phase | Phase 0 |
 | Status | pending |
 

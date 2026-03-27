@@ -50,13 +50,13 @@ No new code generated from scratch. Your existing codebase is refactored.
 
 ## 5 Autonomous AI Agent Actions
 
-| # | Agent Action | What It Does |
-|---|-------------|-------------|
-| **1** | **Component Auto-Detection** | Analyzes DOM structure and autonomously identifies components (Navbar, Card Grid, Sidebar, etc.) |
-| **2** | **Design Improvement Suggestions** | Proactively detects layout issues (uneven spacing, misalignment) and suggests fixes |
-| **3** | **Responsive Auto-Conversion** | One-click mobile view &mdash; agent autonomously rearranges layout for 375px |
-| **4** | **Source Code Refactoring** | Maps visual changes to your actual source files and generates precise diffs |
-| **5** | **Self-Verification Loop** | Re-renders after refactoring, compares with intended layout, auto-fixes mismatches (up to 3 retries) |
+| # | Agent Action | What It Does | AI Model |
+|---|-------------|-------------|----------|
+| **1** | **Component Auto-Detection** | Analyzes DOM, autonomously identifies Navbar, Card Grid, Sidebar etc. | GPT-4o |
+| **2** | **Real-time Edit Feedback** | After each drag/resize: "8px misaligned", "card too small" — instant review | GPT-4o |
+| **3** | **Chat Consultation** | "How should I fix the footer?" — analysis + suggestions. "Do it for me" — auto-modify with confirmation | GPT-4o |
+| **4** | **Source Code Refactoring** | Maps visual changes to actual source files, generates precise diffs | Claude |
+| **5** | **Self-Verification Loop** | Re-renders after refactoring, auto-fixes mismatches (up to 3 retries) | Claude |
 
 > The agent doesn't just respond to commands. It **observes, suggests, acts, and verifies on its own.**
 
@@ -65,25 +65,23 @@ No new code generated from scratch. Your existing codebase is refactored.
 ## Architecture
 
 ```
-Browser
-├── URL Input ──> Puppeteer DOM Scan ──> AI Component Detector
-│                                              │
-│                                              ▼
-├── Visual Editor (iframe + overlay) <── Component Store (Zustand)
-│   ├── Drag / Resize / Rearrange              │
-│   ├── Design Suggestions [Apply] [Dismiss]   │
-│   └── Mobile View (AI auto-layout)           │
-│                                              │
-│   [Save] ────────────────────────────────────┘
-│              │
-│              ▼
-├── AI Refactoring ──> Diff Preview ──> Apply to Source
-│              │
-│              ▼
-└── Self-Verification Loop
-    ├── Re-render with Puppeteer
-    ├── Compare with intended layout
-    └── Auto-fix if mismatch (max 3x)
+Browser (localhost:4000)
+├── Floating Toolbar
+├── Visual Editor (iframe + overlay)
+│   └── Drag/resize overlays (actual page doesn't move)
+├── Agent Panel
+│   ├── Real-time Feedback [Apply] [Dismiss]
+│   ├── Chat (ask / delegate / instruct)
+│   └── Agent Log
+│
+│   WebSocket (always connected)
+│   ▼
+WIGSS Agent (Node.js, event-driven)
+├── OpenAI GPT-4o — observe, detect, suggest, feedback, chat, responsive
+├── Claude API — code refactoring, self-verification
+├── Puppeteer — DOM scan, verification re-render
+├── chokidar — file change detection
+└── fs — source code read/write
 ```
 
 ## Tech Stack
@@ -100,17 +98,12 @@ Browser
 | **DOM Scan** | Puppeteer | Headless Chrome rendering |
 | **File I/O** | Node.js fs | Source code read/write |
 
-## API Endpoints
+## Communication
 
-| Endpoint | Description |
-|----------|-------------|
-| `POST /api/scan` | DOM scan + screenshot via Puppeteer |
-| `POST /api/detect` | AI component auto-detection |
-| `POST /api/suggest` | AI design improvement suggestions |
-| `POST /api/responsive` | AI responsive layout conversion |
-| `POST /api/refactor` | AI source code refactoring (diff generation) |
-| `POST /api/apply` | Apply diffs to actual source files |
-| `POST /api/verify` | Self-verification + auto-fix loop |
+| Channel | Purpose |
+|---------|---------|
+| `WebSocket /ws` | Always-on agent connection (scan, detect, suggest, feedback, chat, responsive, refactor, verify) |
+| `POST /api/apply` | Apply diffs to source files (REST for safety — requires explicit user confirmation) |
 
 ---
 
@@ -176,6 +169,7 @@ npx wigss --port 3000
 | **Scope** | Single action per request | Multi-step autonomous pipeline |
 | **Error handling** | User reports issues | Self-verifies and auto-corrects |
 | **Result** | Generated text/code | Actual source files modified |
+| **Communication** | Request-response | Always-on WebSocket, event-driven |
 
 ---
 
@@ -183,9 +177,9 @@ npx wigss --port 3000
 
 ```
 docs/
-├── prd/PRD_wigss.md           # Product Requirements (v4.0)
+├── prd/PRD_wigss.md           # Product Requirements (v5.0)
 ├── todo_plan/PLAN_wigss.md    # Execution Plan (D-1 / D-Day)
-└── ARCHITECTURE.md            # System Architecture
+└── ARCHITECTURE.md            # System Architecture (v2.0)
 ```
 
 ## License
