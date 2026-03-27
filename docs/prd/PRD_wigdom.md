@@ -1,1089 +1,1130 @@
-# Wigdom PRD
+# WIGSS PRD
 
-> **Version**: 1.0
+> **Version**: 3.1
 > **Created**: 2026-03-26
-> **Status**: Reviewed (Critical issues fixed)
-> **Project**: Hackathon - Wigdom (AI Agent 기반 DOM 레이아웃 자동화 도구)
+> **Updated**: 2026-03-27 (자기검증 루프, 디자인 제안, 반응형 변환 추가)
+> **Status**: Final
+> **Hackathon**: 2026-03-28 (Trae.ai 주관, 주제: "에이전트")
+
+---
 
 ## 1. Overview
 
-### 1.1 Problem Statement
+### 1.1 한 줄 피치
 
-프론트엔드 개발/퍼블리싱 작업에서 CSS 레이아웃 배치는 코드를 수정하고 브라우저를 새로고침하는 반복 작업이 필요하다. 중첩된 DOM 구조 안에서 요소의 위치를 변경하려면 부모-자식 관계, flexbox/grid 속성, position 등 여러 CSS 속성을 이해하고 조합해야 한다.
+> **"코드로 대충 짜놓은 화면을, 웹 꾸미기처럼 직접 만지고, 저장하면 코드가 알아서 바뀐다."**
 
-**이 도구는 개발서버의 DOM을 스캔하여 Canvas 위에 플랫하게 펼친 뒤, 마우스 드래그 또는 자연어 목표를 주면 AI 에이전트가 자율적으로 관찰→계획→실행→검증을 반복하며 레이아웃을 자동 재배치하고, 최종 결과를 깨끗한 HTML/CSS 코드로 변환해주는 AI 에이전트 기반 레이아웃 자동화 도구다.**
+### 1.2 Problem Statement
 
-### 1.2 Goals
-- 개발서버에서 렌더링된 실제 DOM을 Canvas에 1:1로 재현
-- 중첩된 DOM 트리를 플랫한 단일 오브젝트로 변환하여 자유로운 드래그 편집 지원
-- **AI 에이전트가 자연어 목표를 받으면 자율적으로 멀티 스텝 실행 (관찰→계획→실행→검증 루프)**
-- 에이전트 실행 과정을 사용자에게 실시간 시각화 (계획, 진행률, 변경 로그)
-- 편집 결과를 구조화된 HTML/CSS로 역변환하여 실제 코드에 반영
+AI 시대에 웹 디자이너나 퍼블리셔 없이 프론트엔드 개발자가 직접 화면을 만드는 경우가 늘고 있다. 개발자는 코드로 화면을 대충 구성할 수는 있지만, 이걸 "보기 좋게" 다듬는 건 여전히 고통이다.
 
-### 1.3 Non-Goals (Out of Scope)
-- 실시간 협업 편집 (멀티 유저)
-- 모바일 앱 (React Native 등) 지원
+**기존 방식의 문제:**
+- CSS를 수정하고 → 새로고침하고 → 확인하고 → 다시 수정하는 반복
+- 컴포넌트 간 간격, 크기, 배치를 코드로 조정하는 건 비효율적
+- 디자인 도구(Figma 등)에서 만든 결과를 코드로 옮기는 건 또 다른 작업
+
+**WIGSS이 해결하는 방식:**
+1. 개발자가 코드로 화면을 간단히 구성한다
+2. **AI 에이전트가 렌더링된 화면의 DOM을 분석하여, 각 컴포넌트를 자동으로 인식하고 개별 조작 가능한 단위로 분리한다** ← 핵심 에이전트 기능
+3. **에이전트가 현재 레이아웃의 문제점(간격 불균일, 정렬 미스 등)을 분석하고 개선안을 제안한다** ← 능동적 에이전트
+4. 개발자가 웹 꾸미기처럼 컴포넌트를 드래그/리사이즈/재배치한다 (또는 에이전트 제안을 수락)
+5. **저장하면 AI 에이전트가 변경된 레이아웃에 맞춰 기존 소스코드를 자동 리팩토링한다** ← 핵심 에이전트 기능
+6. **에이전트가 리팩토링 결과를 다시 렌더링하여 의도한 레이아웃과 비교 검증, 불일치 시 자동 재수정한다** ← 자기 검증 루프
+7. **"모바일 보기" 시 에이전트가 현재 레이아웃을 375px 기준으로 자동 재배치한다** ← 반응형 자동 변환
+
+> 자연어로 "이거 옮겨줘"가 아니라, **직접 클릭해서 드래그하면 된다.** 마치 웹 빌더처럼.
+> 단, 에이전트는 **능동적으로 "이건 이렇게 하면 더 좋겠다"고 제안**한다.
+
+### 1.3 Goals
+
+- 개발서버 화면의 DOM을 스캔하여 **컴포넌트 단위로 자동 인식/분리**
+- 분리된 컴포넌트를 **드래그/리사이즈/재배치** 가능한 시각적 편집기 제공
+- 실제 렌더링된 화면 그대로 보여주되, 각 컴포넌트가 개별 조작 가능
+- 편집 결과를 저장하면 **기존 소스코드를 AI가 자동 리팩토링**
+- **리팩토링 후 자기 검증**: 수정된 코드를 다시 렌더링 → 편집 의도와 비교 → 불일치 시 자동 재수정 (최대 3회)
+- **디자인 개선 제안**: 에이전트가 능동적으로 간격/정렬/크기 문제를 감지하고 개선안 제안
+- **반응형 자동 변환**: "모바일 보기" 시 에이전트가 375px 기준으로 레이아웃 자동 재배치
+
+### 1.4 Non-Goals (Out of Scope)
+
+- 새로운 컴포넌트 추가/생성 (기존 화면의 재배치에 집중)
 - 백엔드 로직/API 자동 생성
-- Figma/Sketch 같은 본격적인 디자인 툴 수준의 그래픽 편집
+- Figma/Sketch 수준의 그래픽 편집
 - 프로덕션 배포 자동화
+- 실시간 협업 편집
 
-### 1.4 Scope
+### 1.5 Scope
 
 | 포함 | 제외 |
 |------|------|
-| 개발서버 DOM 스캔 및 파싱 | 서버 사이드 렌더링 분석 |
-| Canvas 기반 시각적 레이아웃 편집기 | 3D 변환/애니메이션 편집 |
-| AI 자연어 명령으로 레이아웃 조작 | 복잡한 인터랙션(이벤트 핸들러) 편집 |
-| HTML/CSS 코드 자동 생성 및 export | JavaScript 로직 생성 |
-| AI 레이아웃 자동 제안 | A/B 테스트 자동화 |
+| 개발서버 DOM 스캔 + 컴포넌트 자동 인식 | 서버 사이드 렌더링 분석 |
+| 시각적 드래그/리사이즈 편집기 | 3D 변환/애니메이션 편집 |
+| AI 기반 컴포넌트 경계 판단 | 복잡한 인터랙션 편집 |
+| 기존 소스코드 리팩토링 | 새 프로젝트 생성 |
+| React/Next.js 프로젝트 지원 | Vue/Angular 등 (향후 확장) |
 
-## 2. User Stories
+---
 
-### 2.1 Primary User - 프론트엔드 개발자
+## 2. 해커톤 심사 기준 매핑
 
-**US-001**: As a 프론트엔드 개발자, I want to 개발서버에 띄운 페이지의 DOM을 스캔하여 Canvas에 시각화 so that 코드 수정 없이 레이아웃을 눈으로 확인하고 조작할 수 있다.
+해커톤 주제 "에이전트" 5가지 핵심 기준:
 
-**US-002**: As a 프론트엔드 개발자, I want to Canvas에서 중첩된 요소들을 개별 오브젝트로 자유롭게 드래그 so that CSS 속성을 직접 수정하지 않고 빠르게 레이아웃을 잡을 수 있다.
+| 심사 기준 | WIGSS 대응 | 데모 증거 |
+|-----------|------------|-----------|
+| **목표를 이해하고** | 개발자의 소스코드 + 렌더링된 화면을 함께 분석 | URL + 프로젝트 경로 입력 → 화면 구조 파악 |
+| **필요한 정보를 모으고** | DOM 분석으로 컴포넌트 경계, 중첩 관계, 스타일 자동 수집 | Navbar, Card Grid, Sidebar 등 자동 인식 |
+| **적절한 도구를 활용하고** | 컴포넌트 분리 → 시각적 편집기 제공 → AST 기반 코드 수정 | 드래그/리사이즈 UI + 코드 diff 생성 |
+| **여러 단계를 거쳐** | DOM 분석 → 컴포넌트 인식 → 편집 가능 변환 → 코드 리팩토링 | 멀티스텝 에이전트 파이프라인 |
+| **실제 결과를 만들어내는** | 기존 소스코드가 실제로 수정됨 | 리팩토링된 코드로 다시 빌드 → 편집한 대로 화면 표시 |
 
-**US-003**: As a 프론트엔드 개발자, I want to 편집한 레이아웃을 HTML/CSS 코드로 자동 변환 so that 바로 프로젝트에 적용할 수 있다.
+### "에이전트다움" 핵심 — 5가지 자율 행동
 
-### 2.2 Secondary User - 퍼블리셔/디자이너
-
-**US-004**: As a 퍼블리셔, I want to "헤더를 상단 고정하고, 카드 3개를 가로 정렬해줘" 같은 자연어로 레이아웃을 변경 so that CSS 문법을 몰라도 레이아웃을 조작할 수 있다.
-
-**US-005**: As a 디자이너, I want to AI가 현재 레이아웃을 분석하고 개선안을 제안 so that 더 나은 디자인 결과물을 빠르게 얻을 수 있다.
-
-### 2.3 Acceptance Criteria (Gherkin)
-
-```gherkin
-Scenario: DOM 스캔 및 Canvas 시각화
-  Given 개발서버가 localhost:3000에서 실행 중이다
-  When 사용자가 URL을 입력하고 "스캔" 버튼을 클릭한다
-  Then 해당 페이지의 DOM 요소들이 Canvas 위에 플랫하게 시각화된다
-  And 각 요소는 원래 위치, 크기, 스타일을 반영한다
-
-Scenario: 오브젝트 드래그 이동
-  Given Canvas에 DOM 요소들이 시각화되어 있다
-  When 사용자가 특정 요소를 마우스로 드래그하여 새 위치에 놓는다
-  Then 해당 요소가 새 위치에 배치된다
-  And 변경 사항이 실시간으로 Canvas에 반영된다
-
-Scenario: 자연어 레이아웃 변경
-  Given Canvas에 DOM 요소들이 시각화되어 있다
-  When 사용자가 "이 버튼을 오른쪽 하단으로 옮겨줘"라고 입력한다
-  Then AI 에이전트가 해당 요소를 식별한다
-  And 지정된 위치로 오브젝트가 이동된다
-
-Scenario: HTML/CSS 코드 내보내기
-  Given 사용자가 Canvas에서 레이아웃 편집을 완료했다
-  When "코드 생성" 버튼을 클릭한다
-  Then 편집된 레이아웃이 구조화된 HTML/CSS 코드로 변환된다
-  And 코드를 클립보드 복사 또는 파일 다운로드할 수 있다
+```
+1. 컴포넌트 자동 인식   → DOM + 스타일을 분석하여 "이건 Navbar, 이건 Card Grid"를 스스로 판단
+2. 디자인 개선 제안     → 현재 레이아웃의 문제점을 능동적으로 감지하고 "이렇게 하면 더 좋겠다" 제안
+3. 반응형 자동 변환     → "모바일 보기" 시 데스크톱 레이아웃을 375px 기준으로 자율 재배치
+4. 코드 리팩토링        → 변경된 레이아웃을 분석하여 기존 소스의 어떤 파일/라인을 수정할지 자율 판단
+5. 자기 검증 + 자동 수정 → 리팩토링 결과를 다시 렌더링 → 불일치 시 스스로 코드 재수정 (최대 3회)
 ```
 
-## 3. Functional Requirements
+### 차별화 키워드
+
+| 키워드 | 설명 |
+|--------|------|
+| **컴포넌트 자동 분리** | "DOM을 보고 에이전트가 스스로 컴포넌트 경계를 판단합니다" |
+| **능동적 제안** | "에이전트가 먼저 '이 간격이 불균일합니다' 같은 개선안을 제안합니다" |
+| **반응형 원클릭** | "'모바일 보기' 한 번이면 에이전트가 알아서 레이아웃을 재배치합니다" |
+| **소스코드 리팩토링** | "새 코드를 만드는 게 아니라, 기존 소스를 수정합니다" |
+| **자기 검증** | "리팩토링 후 스스로 결과를 검증하고, 안 맞으면 스스로 재수정합니다" |
+
+---
+
+## 3. User Stories
+
+### 3.1 Primary User - 프론트엔드 개발자
+
+**US-001**: As a 프론트엔드 개발자, I want to 코드로 대충 짜놓은 화면을 WIGSS에 넣으면 각 컴포넌트가 자동으로 분리되어 so that 디자인 도구처럼 직접 드래그/리사이즈로 배치할 수 있다.
+
+**US-002**: As a 프론트엔드 개발자, I want to 시각적으로 편집한 결과를 저장하면 기존 소스코드가 자동으로 리팩토링되어 so that CSS를 직접 수정하지 않아도 된다.
+
+**US-003**: As a 프론트엔드 개발자, I want to 리팩토링된 코드를 바로 빌드하면 내가 편집한 대로 화면이 나와 so that 디자이너/퍼블리셔 없이도 화면을 다듬을 수 있다.
+
+### 3.2 해커톤 심사위원
+
+**US-004**: As a 심사위원, I want to 에이전트가 DOM을 분석하여 컴포넌트를 자동 인식하고, 편집 후 코드를 리팩토링하는 전 과정을 관찰 so that 에이전트다움을 평가할 수 있다.
+
+### 3.3 Acceptance Criteria (Gherkin)
+
+```gherkin
+Scenario: DOM 스캔 및 컴포넌트 자동 분리
+  Given 개발서버가 localhost:3000에서 실행 중이고 프로젝트 소스 경로가 제공되었다
+  When 사용자가 URL을 입력하고 "스캔" 버튼을 클릭한다
+  Then AI 에이전트가 DOM을 분석하여 컴포넌트 단위로 자동 인식한다
+  And 각 컴포넌트(Navbar, Card, Sidebar 등)가 개별 선택/드래그/리사이즈 가능한 상태로 표시된다
+  And 실제 렌더링된 화면의 모습 그대로 보인다
+
+Scenario: 컴포넌트 시각적 편집 (웹 꾸미기)
+  Given 컴포넌트가 분리된 편집 모드에 있다
+  When 사용자가 Card 컴포넌트를 드래그하여 새 위치에 놓는다
+  Then 해당 컴포넌트가 새 위치에 실시간으로 배치된다
+  When 사용자가 Navbar의 높이를 리사이즈 핸들로 줄인다
+  Then Navbar 높이가 줄어들고 하단 컴포넌트들이 자동 재배치된다
+
+Scenario: 소스코드 자동 리팩토링
+  Given 사용자가 컴포넌트들을 시각적으로 재배치 완료했다
+  When "저장" 버튼을 클릭한다
+  Then AI 에이전트가 변경된 레이아웃을 분석한다
+  And 기존 소스코드의 해당 CSS/스타일 부분을 자동 수정한다
+  And 수정된 코드 diff를 미리보기로 보여준다
+  And 사용자가 "적용"을 누르면 실제 소스 파일이 수정된다
+
+Scenario: 리팩토링 자기 검증 + 자동 재수정
+  Given 소스코드가 리팩토링되었다
+  When 에이전트가 수정된 코드를 다시 렌더링하여 검증한다
+  Then 편집한 레이아웃과 비교하여 일치 여부를 판단한다
+  And 불일치가 발견되면 자동으로 코드를 재수정한다 (최대 3회)
+  And 검증 결과와 수정 이력이 AgentPanel에 표시된다
+
+Scenario: 디자인 개선 제안
+  Given 컴포넌트가 분리된 편집 모드에 있다
+  When 에이전트가 현재 레이아웃을 분석한다
+  Then "Card 간격이 불균일합니다. 균일하게 맞출까요?" 같은 개선안을 제안한다
+  And 사용자가 "적용"을 누르면 에이전트가 자동으로 배치를 수정한다
+  And 사용자가 "무시"를 누르면 현재 상태를 유지한다
+
+Scenario: 반응형 자동 변환
+  Given 데스크톱(1280px) 레이아웃이 편집 모드에 있다
+  When 사용자가 "모바일 보기 (375px)" 버튼을 클릭한다
+  Then 에이전트가 현재 레이아웃을 분석하여 375px 기준으로 자동 재배치한다
+  And 3열 그리드 → 1열 스택, 사이드바 → 하단 이동 등이 자동 적용된다
+  And 사용자가 결과를 추가 조정할 수 있다
+  And 저장 시 반응형 media query를 포함한 코드로 리팩토링된다
+```
+
+---
+
+## 4. Functional Requirements
 
 | ID | Requirement | Priority | Dependencies |
 |----|------------|----------|--------------|
-| FR-001 | 개발서버 URL 입력으로 DOM 스캔 (Puppeteer headless browser) | P0 (Must) | - |
-| FR-002 | Puppeteer로 실제 렌더링된 DOM에서 getBoundingClientRect + getComputedStyle 추출 | P0 (Must) | FR-001 |
-| FR-015 | 요소 스마트 필터링: display:none/script/style/meta 제외, 최소 면적(10x10px) 이상만, 최대 200개 제한 | P0 (Must) | FR-002 |
-| FR-003 | Canvas에 DOM 요소를 플랫한 단일 오브젝트로 렌더링 (색상 사각형 + 태그 라벨) | P0 (Must) | FR-015 |
-| FR-004 | 오브젝트 마우스 드래그 이동 (자유 배치) | P0 (Must) | FR-003 |
-| FR-005 | 오브젝트 리사이즈 (핸들 드래그) | P1 (Should) | FR-003 |
-| FR-006 | Canvas 상태를 HTML/CSS로 역변환 (기본: position absolute, auto: AI가 flex/grid 판단하여 생성) | P0 (Must) | FR-004 |
-| FR-007 | AI 에이전트 자율 실행 루프 (OBSERVE→PLAN→EXECUTE→VERIFY 반복) | P0 (Must) | FR-003 |
-| FR-016 | 에이전트 실행 계획 수립 및 사용자 표시 (create_plan) | P0 (Must) | FR-007 |
-| FR-017 | 에이전트 자율 검증 및 자동 수정 (verify_layout → 재실행) | P0 (Must) | FR-007 |
-| FR-018 | 에이전트 실행 과정 실시간 시각화 (SSE 스트리밍) | P0 (Must) | FR-007 |
-| FR-019 | 에이전트 제어 (일시정지/재개/건너뛰기/중단) | P1 (Should) | FR-018 |
-| FR-020 | 자연어 목표 → 에이전트 멀티 스텝 자동 실행 (반응형 변환, 정리, 접근성 등) | P0 (Must) | FR-007 |
-| FR-008 | AI 레이아웃 자동 제안 (현재 배치 분석) | P1 (Should) | FR-003 |
-| FR-009 | 생성된 코드 미리보기 및 export (복사/다운로드) | P0 (Must) | FR-006 |
-| FR-010 | Undo/Redo 지원 | P1 (Should) | FR-004 |
-| FR-011 | 오브젝트 선택 시 원본 태그 정보 표시 (태그명, class, id) | P1 (Should) | FR-003 |
-| FR-012 | 스냅/그리드 정렬 가이드 | P2 (Could) | FR-004 |
-| FR-013 | 디자인 시스템(Tailwind 등) 클래스 자동 매핑 | P2 (Could) | FR-006, FR-007 |
-| FR-014 | 레이아웃 상태 저장/불러오기 | P1 (Should) | FR-004 |
+| **DOM 스캔 & 컴포넌트 인식** |
+| FR-001 | 개발서버 URL 입력으로 DOM 스캔 (Puppeteer headless) | P0 | - |
+| FR-002 | getBoundingClientRect + getComputedStyle 추출 | P0 | FR-001 |
+| FR-003 | **AI 에이전트가 DOM 트리를 분석하여 컴포넌트 경계를 자동 인식** (Navbar, Card, Sidebar, Footer 등) | P0 | FR-002 |
+| FR-004 | 인식된 컴포넌트별 바운딩 박스 + 라벨 표시 | P0 | FR-003 |
+| FR-005 | 요소 스마트 필터링 (invisible/script/style/meta 제외, 최대 200개) | P0 | FR-002 |
+| FR-021 | 데모 모드 (사전 스캔 결과 캐싱, Puppeteer 실패 시 fallback) | P0 | FR-001 |
+| **시각적 편집 (웹 꾸미기)** |
+| FR-006 | 실제 렌더링된 화면을 그대로 표시하되, 컴포넌트별 선택 가능 | P0 | FR-004 |
+| FR-007 | 컴포넌트 드래그 이동 (자유 배치) | P0 | FR-006 |
+| FR-008 | 컴포넌트 리사이즈 (핸들 드래그로 늘리고/줄이고) | P0 | FR-006 |
+| FR-009 | 컴포넌트 선택 시 정보 표시 (컴포넌트명, 원본 파일 경로, CSS 클래스) | P1 | FR-006 |
+| FR-010 | Undo/Redo 지원 | P1 | FR-007 |
+| FR-011 | 스냅/그리드 정렬 가이드 | P2 | FR-007 |
+| **소스코드 리팩토링** |
+| FR-012 | 프로젝트 소스 경로 입력 + 파일 구조 분석 | P0 | - |
+| FR-013 | **AI 에이전트가 변경된 레이아웃 → 기존 소스코드 매핑 (어떤 파일의 어떤 라인을 수정할지 판단)** | P0 | FR-012, FR-007 |
+| FR-014 | 수정된 코드 diff 미리보기 | P0 | FR-013 |
+| FR-015 | "적용" 시 실제 소스 파일 수정 | P0 | FR-014 |
+| FR-016 | 리팩토링 후 자기 검증: 수정된 코드 → Puppeteer 재렌더링 → 편집 의도와 비교 | P0 | FR-015 |
+| FR-022 | **자기 검증 실패 시 자동 재수정 (diff 재생성 → 재적용 → 재검증, 최대 3회 루프)** | P0 | FR-016 |
+| **디자인 개선 제안** |
+| FR-023 | **편집 모드 진입 시 에이전트가 현재 레이아웃을 능동적으로 분석하여 개선안 제안** (간격 불균일, 정렬 미스, 크기 불일치 등) | P1 | FR-004 |
+| FR-024 | 제안 UI: 제안 카드 목록 (설명 + 미리보기 + "적용"/"무시" 버튼) | P1 | FR-023 |
+| FR-025 | "적용" 시 에이전트가 해당 컴포넌트를 자동 재배치 (사용자 드래그 없이) | P1 | FR-024 |
+| **반응형 자동 변환** |
+| FR-026 | **"모바일 보기" 버튼 → 에이전트가 현재 레이아웃을 375px 기준으로 자동 재배치** | P1 | FR-004 |
+| FR-027 | 반응형 변환 시 에이전트 판단: 다열→1열, 사이드바→하단, 요소 크기 축소 등 | P1 | FR-026 |
+| FR-028 | 반응형 결과를 사용자가 추가 조정 가능 | P1 | FR-026 |
+| FR-029 | 저장 시 media query 포함 코드로 리팩토링 | P2 | FR-026, FR-013 |
+| **에이전트 UX** |
+| FR-017 | 에이전트 실행 과정 실시간 표시 (컴포넌트 인식 중... → 편집 모드 준비 → 리팩토링 중... → 검증 중... → 재수정 중...) | P0 | FR-003 |
+| FR-018 | 에이전트 판단 로그 (왜 이걸 하나의 컴포넌트로 인식했는지, 왜 이 개선을 제안했는지 등) | P1 | FR-003 |
 
-## 4. Non-Functional Requirements
+---
 
-### 4.0 Scale Grade
+## 5. Non-Functional Requirements
+
+### 5.0 Scale Grade
 
 **Hobby** (해커톤 프로젝트)
 
 | 항목 | 값 |
 |------|-----|
-| 일일 사용자(DAU) | < 100 (데모/심사용) |
+| DAU | < 100 |
 | 동시접속 | < 10 |
 | 데이터량 | < 100MB |
 
-### 4.1 Performance SLA
+### 5.1 Performance SLA
 
 | 지표 | 목표값 |
 |------|--------|
-| DOM 스캔 완료 시간 | < 5초 (필터링 후 최대 200개 요소 기준) |
-| Canvas 렌더링 | < 1초 |
-| 드래그 반응 속도 | 60fps (16ms 이하) |
-| AI 응답 시간 | < 5초 (자연어 명령) |
-| 코드 생성 시간 | < 2초 |
+| DOM 스캔 + 컴포넌트 인식 | < 10초 |
+| 편집기 렌더링 | < 2초 |
+| 드래그/리사이즈 반응 | 60fps |
+| 코드 리팩토링 생성 | < 15초 |
 
-### 4.2 Availability SLA
+### 5.2 Security
 
-| 등급 | Uptime | 비고 |
-|------|--------|------|
-| Hobby | 95% | 해커톤 데모 시간에 안정적 동작이면 충분 |
+- SSRF 방어: localhost만 허용
+- 소스코드 접근: 로컬 파일시스템만 (서버사이드)
+- API Key: .env.local 서버사이드 전용
+- 소스 수정 전 반드시 diff 미리보기 → 사용자 확인
 
-### 4.3 Data Requirements
+---
 
-| 항목 | 값 |
-|------|-----|
-| 현재 데이터량 | < 10MB |
-| 데이터 보존 기간 | 세션 기반 (브라우저 localStorage) |
-| 저장 형태 | JSON (Canvas 상태) + HTML/CSS (export) |
+## 6. Technical Design
 
-### 4.4 Recovery
-
-| 항목 | 값 |
-|------|-----|
-| RTO | N/A (클라이언트 앱) |
-| RPO | 세션 중 localStorage 자동 저장 |
-
-### 4.5 Security
-- Authentication: 불필요 (로컬 도구)
-- SSRF 방어: `/api/scan` URL 허용 목록 적용
-  - 허용: `localhost`, `127.0.0.1`, `0.0.0.0` 만 허용
-  - 차단: 사설 IP (10.x, 172.16-31.x, 192.168.x, 169.254.x), `file://`, `ftp://`, `gopher://` 프로토콜
-- XSS: 스캔된 HTML 내 script 태그 무시, Canvas 렌더링 시 innerHTML 미사용
-- API Key: AI API 키는 서버사이드 환경변수로 관리 (.env.local)
-
-## 5. Technical Design
-
-### 5.1 System Architecture
+### 6.1 System Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                        Browser (Client)                         │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
+│                                                                  │
 │  ┌──────────────┐    ┌──────────────────┐    ┌──────────────┐  │
-│  │  URL Input    │───>│  DOM Scanner      │───>│  DOM Parser   │  │
-│  │  Panel        │    │  (Puppeteer)      │    │  (Tree→Flat)  │  │
-│  └──────────────┘    └──────────────────┘    └──────┬───────┘  │
+│  │  URL + Path   │───>│  DOM Scanner      │───>│  Component   │  │
+│  │  Input        │    │  (Puppeteer)      │    │  Detector    │  │
+│  └──────────────┘    └──────────────────┘    │  (AI Agent)  │  │
+│                                               └──────┬───────┘  │
 │                                                      │          │
 │                                                      ▼          │
 │  ┌──────────────┐    ┌──────────────────┐    ┌──────────────┐  │
-│  │  AI Chat      │◄──>│  Canvas Editor    │◄──│  Object Store │  │
-│  │  Panel        │    │  (Drag & Drop)    │    │  (State Mgmt) │  │
-│  └──────┬───────┘    └──────────────────┘    └──────────────┘  │
-│         │                     │                                  │
-│         ▼                     ▼                                  │
-│  ┌──────────────┐    ┌──────────────────┐                      │
-│  │  AI Agent     │    │  Code Generator   │                      │
-│  │  Service      │    │  (Canvas→HTML/CSS)│                      │
-│  └──────┬───────┘    └──────────────────┘                      │
-│         │                                                        │
-└─────────┼────────────────────────────────────────────────────────┘
-          │
-          ▼
-┌─────────────────────┐
-│  Backend (API Server)│
-├─────────────────────┤
-│  - AI Proxy API      │
-│  - Puppeteer Scanner │
-│  (Headless Chrome)   │
-└─────────┬───────────┘
-          │
-          ▼
-┌─────────────────────┐
-│  AI Provider         │
-│  (Claude API)        │
-└─────────────────────┘
+│  │  Component    │    │  Visual Editor    │◄──│  Component   │  │
+│  │  Info Panel   │◄──>│  (Drag/Resize)    │    │  Store       │  │
+│  └──────────────┘    └────────┬─────────┘    │  (Zustand)   │  │
+│                               │               └──────────────┘  │
+│                               │ "저장"                           │
+│                               ▼                                  │
+│                      ┌──────────────────┐                       │
+│                      │  Code Diff        │                       │
+│                      │  Preview          │                       │
+│                      └────────┬─────────┘                       │
+│                               │ "적용"                           │
+└───────────────────────────────┼──────────────────────────────────┘
+                                │
+                                ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    Backend (Next.js API Routes)                   │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  /api/scan          → Puppeteer DOM 추출                         │
+│  /api/detect        → AI 컴포넌트 인식 (Claude Tool Use)         │
+│  /api/refactor      → AI 소스코드 리팩토링 (Claude)              │
+│  /api/apply         → 소스 파일 실제 수정                        │
+│  /api/verify        → 수정 후 재렌더링 비교                      │
+│                                                                  │
+│  File System Access → 프로젝트 소스코드 읽기/쓰기                 │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+                                │
+                                ▼
+                    ┌───────────────────────┐
+                    │  Claude API            │
+                    │  (Tool Use + 추론)     │
+                    └───────────────────────┘
 ```
 
-### 5.2 Core Pipeline
+### 6.2 Core Pipeline
 
 ```
-[Phase 1: DOM Scan]
-개발서버 URL → Puppeteer headless 접속 → 실제 페이지 렌더링
-                                              │
-[Phase 2: Extract & Filter]                   ▼
-Puppeteer page.evaluate() → querySelectorAll('*')
-  → getBoundingClientRect() + getComputedStyle() 추출
-  → 스마트 필터링 (invisible/trivial 제거, max 200개)
-  → 플랫 오브젝트 배열 생성 (id, tag, x, y, w, h, styles)
-                                              │
-[Phase 3: Canvas Render]                      ▼
-플랫 오브젝트 배열 → Canvas 렌더링 (색상 사각형 + 태그 라벨)
-                   → 드래그/리사이즈 핸들러 바인딩
-                                              │
-[Phase 4: Edit]                               ▼
-사용자 드래그 → 오브젝트 좌표 업데이트 → Canvas 리렌더
-AI 자연어 → 오브젝트 식별 + 좌표 변환 → Canvas 리렌더
-                                              │
-[Phase 5: Export]                             ▼
-편집된 오브젝트 배열 → AI에 전달 → 레이아웃 전략 자동 판단
-  → absolute(기본) / flex / grid 선택 → HTML 구조 재구성 → 코드 출력
+[Step 1: DOM 스캔]
+개발서버 URL → Puppeteer → 실제 페이지 렌더링 → 스크린샷 + DOM 트리 추출
+                                                          │
+[Step 2: 컴포넌트 자동 인식] ★ AI 에이전트 핵심 ★          ▼
+DOM 트리 + 스타일 정보 → Claude AI 분석
+  → "이 div.navbar는 Navigation 컴포넌트"
+  → "이 section.cards는 Card Grid 컴포넌트 (자식 3개)"
+  → "이 aside.sidebar는 Sidebar 컴포넌트"
+  → 각 컴포넌트의 바운딩 박스 + 계층 관계 생성
+                                                          │
+[Step 3: 편집 모드 변환]                                    ▼
+컴포넌트별 바운딩 박스 → 오버레이 UI 생성
+  → 각 컴포넌트에 선택/드래그/리사이즈 핸들 부착
+  → 실제 렌더링된 화면 위에 편집 레이어 겹침
+                                                          │
+[Step 4: 시각적 편집 (사용자)]                              ▼
+사용자가 컴포넌트를 드래그/리사이즈/재배치
+  → Zustand 상태에 변경사항 기록
+  → 원본 대비 변경 delta 추적
+                                                          │
+[Step 5: 소스코드 리팩토링] ★ AI 에이전트 핵심 ★           ▼
+변경 delta + 프로젝트 소스 → Claude AI 분석
+  → "src/components/Navbar.tsx의 className에서 h-16 → h-12로"
+  → "src/app/page.tsx의 grid-cols-3 → grid-cols-2로"
+  → "src/components/Sidebar.tsx를 main 아래로 이동"
+  → 코드 diff 생성 → 사용자 확인 → 소스 파일 수정
 ```
 
-### 5.3 Tech Stack
+### 6.3 Tech Stack
 
 | Layer | Technology | 선택 이유 |
 |-------|-----------|----------|
-| Frontend Framework | Next.js 14 (App Router) | React 기반, SSR/API Routes 통합 |
-| Canvas Engine | Konva.js (react-konva) | 2D Canvas 라이브러리, 드래그/리사이즈 내장 |
-| State Management | Zustand | 경량, Canvas 상태 관리에 적합 |
-| Styling | Tailwind CSS | 빠른 UI 구성, 해커톤에 적합 |
-| AI Provider | Claude API (Anthropic) | Tool use 지원, 구조화된 응답 |
-| DOM Scanning | Puppeteer | Headless Chrome으로 실제 렌더링 후 BoundingRect/ComputedStyle 추출 |
-| Backend | Next.js API Routes | 별도 서버 불필요 |
+| Frontend | Next.js 14 (App Router) | 풀스택, API Routes 통합 |
+| Visual Editor | iframe + 오버레이 div | 실제 화면 그대로 표시 + 편집 레이어 |
+| Drag/Resize | interact.js 또는 커스텀 | 컴포넌트 오버레이에 드래그/리사이즈 |
+| State | Zustand | 컴포넌트 상태 + 변경 추적 |
+| Styling | Tailwind CSS | 빠른 UI 구성 |
+| AI | Claude API (Tool Use) | 컴포넌트 인식 + 코드 리팩토링 |
+| DOM Scan | Puppeteer | Headless Chrome 렌더링 |
+| File I/O | Node.js fs | 프로젝트 소스 읽기/쓰기 |
 | Package Manager | pnpm | 빠른 설치 |
 
-### 5.4 API Specification
+### 6.4 Directory Structure
+
+```
+src/
+├── app/
+│   ├── page.tsx                        # 메인 에디터
+│   └── api/
+│       ├── scan/route.ts               # DOM 스캔 + 스크린샷
+│       ├── detect/route.ts             # AI 컴포넌트 인식
+│       ├── refactor/route.ts           # AI 소스코드 리팩토링
+│       ├── apply/route.ts              # 소스 파일 실제 수정
+│       └── verify/route.ts             # 수정 후 재렌더링 비교
+├── components/
+│   ├── editor/
+│   │   ├── VisualEditor.tsx            # iframe + 오버레이 편집기
+│   │   ├── ComponentOverlay.tsx        # 컴포넌트별 드래그/리사이즈 핸들
+│   │   └── SelectionBox.tsx            # 선택 상태 표시
+│   ├── panels/
+│   │   ├── Toolbar.tsx                 # URL 입력 + 스캔 + 저장
+│   │   ├── ComponentPanel.tsx          # 인식된 컴포넌트 목록
+│   │   ├── AgentPanel.tsx              # 에이전트 상태 + 로그
+│   │   └── DiffPreview.tsx             # 코드 diff 미리보기
+│   └── common/
+├── stores/
+│   ├── editor-store.ts                 # 편집 상태 (컴포넌트, 변경 delta)
+│   └── agent-store.ts                  # 에이전트 실행 상태
+├── lib/
+│   ├── puppeteer.ts                    # DOM 스캔 + 스크린샷
+│   ├── claude.ts                       # Claude API + Tool 정의
+│   ├── component-detector.ts           # 컴포넌트 인식 로직
+│   ├── code-refactorer.ts              # 소스코드 리팩토링 로직
+│   └── file-utils.ts                   # 프로젝트 소스 파일 읽기/쓰기
+├── types/
+│   └── index.ts
+└── data/
+    └── demo-scan-result.json           # 데모 모드용
+```
+
+### 6.5 API Specification
 
 #### `POST /api/scan`
 
-**Description**: Puppeteer headless browser로 대상 URL을 렌더링하고, DOM 요소의 BoundingRect/ComputedStyle을 추출하여 플랫 오브젝트 배열로 반환
+DOM 스캔 + 스크린샷 캡처
 
-**Authentication**: None (로컬 전용)
-
-**URL Validation (SSRF 방어)**:
-- 허용 호스트: `localhost`, `127.0.0.1`, `0.0.0.0` 만 허용
-- 허용 프로토콜: `http://`, `https://` 만 허용
-- 차단: 사설 IP, 메타데이터 서비스 IP, file/ftp 프로토콜
-
-**Request Body**:
-```json
-{
-  "url": "string (required) - 스캔할 개발서버 URL (localhost만 허용)",
-  "options": {
-    "depth": "number (optional) - 최대 탐색 깊이, default: 3",
-    "selector": "string (optional) - 특정 영역만 스캔, default: 'body'",
-    "includeHidden": "boolean (optional) - 숨겨진 요소 포함, default: false",
-    "maxElements": "number (optional) - 최대 요소 수, default: 200",
-    "minSize": "number (optional) - 최소 면적 px (width*height), default: 100"
-  }
-}
-```
-
-**Request Example**:
+**Request**:
 ```json
 {
   "url": "http://localhost:3000",
+  "projectPath": "/Users/dev/my-project/src",
   "options": {
-    "selector": "body",
-    "depth": -1
+    "viewport": { "width": 1280, "height": 720 },
+    "maxElements": 200
   }
 }
 ```
 
-**Response 200 OK**:
+**Response**:
 ```json
 {
   "success": true,
   "data": {
-    "pageTitle": "string - 페이지 제목",
-    "viewport": {
-      "width": "number",
-      "height": "number"
-    },
-    "elements": [
-      {
-        "id": "string - 고유 식별자 (el_001)",
-        "tag": "string - HTML 태그명",
-        "originalId": "string | null - 원본 id 속성",
-        "className": "string - 원본 class 속성",
-        "textContent": "string - 텍스트 내용 (truncated)",
-        "rect": {
-          "x": "number - 절대 X 좌표",
-          "y": "number - 절대 Y 좌표",
-          "width": "number - 너비",
-          "height": "number - 높이"
-        },
-        "computedStyles": {
-          "backgroundColor": "string",
-          "color": "string",
-          "fontSize": "string",
-          "fontWeight": "string",
-          "borderRadius": "string",
-          "border": "string",
-          "padding": "string",
-          "display": "string",
-          "opacity": "string"
-        },
-        "depth": "number - 원본 DOM 트리에서의 깊이",
-        "parentId": "string | null - 부모 요소 ID",
-        "children": "string[] - 자식 요소 ID 배열"
-      }
-    ],
-    "totalElements": "number"
-  }
-}
-```
-
-**Error Responses**:
-
-| Status | Code | Message | Description |
-|--------|------|---------|-------------|
-| 400 | INVALID_URL | Invalid URL format | URL 형식 오류 |
-| 403 | URL_NOT_ALLOWED | Only localhost URLs are allowed | localhost 외 URL 차단 (SSRF 방어) |
-| 502 | FETCH_FAILED | Failed to fetch target URL | 대상 서버 접근 실패 |
-| 408 | SCAN_TIMEOUT | DOM scan timed out | 스캔 타임아웃 (10초) |
-| 500 | PARSE_ERROR | Failed to parse DOM | DOM 파싱 실패 |
-
----
-
-#### `POST /api/ai/command`
-
-**Description**: 자연어 명령을 Canvas 조작 명령으로 변환
-
-**Request Body**:
-```json
-{
-  "command": "string (required) - 자연어 명령",
-  "canvasState": {
-    "elements": "Element[] (required) - 현재 Canvas 오브젝트 배열",
-    "viewport": "object (required) - Canvas 뷰포트 정보"
-  },
-  "history": "Message[] (optional) - 이전 대화 히스토리"
-}
-```
-
-**Request Example**:
-```json
-{
-  "command": "헤더를 상단에 고정하고 너비를 100%로 맞춰줘",
-  "canvasState": {
-    "elements": [
+    "screenshot": "string (base64 PNG)",
+    "pageTitle": "string",
+    "viewport": { "width": 1280, "height": 720 },
+    "domTree": [
       {
         "id": "el_001",
-        "tag": "header",
-        "rect": { "x": 0, "y": 50, "width": 800, "height": 60 }
+        "tag": "nav",
+        "className": "navbar flex items-center h-16 bg-white",
+        "rect": { "x": 0, "y": 0, "width": 1280, "height": 64 },
+        "computedStyles": { ... },
+        "children": ["el_002", "el_003"],
+        "depth": 1
       }
     ],
-    "viewport": { "width": 1200, "height": 800 }
+    "sourceFiles": ["src/app/page.tsx", "src/components/Navbar.tsx", ...]
   }
 }
 ```
 
-**Response 200 OK**:
+---
+
+#### `POST /api/detect`
+
+AI 에이전트가 DOM을 분석하여 컴포넌트 단위로 인식
+
+**Request**:
+```json
+{
+  "domTree": "DOMElement[] - /api/scan 결과",
+  "screenshot": "string (base64) - 시각적 참고",
+  "sourceFiles": "string[] - 프로젝트 소스 파일 목록"
+}
+```
+
+**Response**:
 ```json
 {
   "success": true,
   "data": {
-    "actions": [
+    "components": [
       {
-        "type": "move | resize | style | group | reorder",
-        "targetId": "string - 대상 오브젝트 ID",
-        "params": {
-          "x": "number (optional)",
-          "y": "number (optional)",
-          "width": "number (optional)",
-          "height": "number (optional)",
-          "styles": "object (optional)"
-        }
+        "id": "comp_001",
+        "name": "Navigation Bar",
+        "type": "navbar",
+        "elementIds": ["el_001", "el_002", "el_003"],
+        "boundingBox": { "x": 0, "y": 0, "width": 1280, "height": 64 },
+        "sourceFile": "src/components/Navbar.tsx",
+        "reasoning": "nav 태그 + flex 레이아웃 + 상단 고정 위치로 Navigation Bar로 판단"
+      },
+      {
+        "id": "comp_002",
+        "name": "Card Grid",
+        "type": "grid",
+        "elementIds": ["el_010", "el_011", "el_012"],
+        "boundingBox": { "x": 0, "y": 64, "width": 960, "height": 400 },
+        "sourceFile": "src/app/page.tsx",
+        "children": [
+          { "id": "comp_002_1", "name": "Card 1", ... },
+          { "id": "comp_002_2", "name": "Card 2", ... },
+          { "id": "comp_002_3", "name": "Card 3", ... }
+        ],
+        "reasoning": "grid-cols-3 레이아웃 + 반복되는 card 패턴으로 Card Grid로 판단"
       }
     ],
-    "explanation": "string - AI의 변경 설명",
-    "suggestion": "string | null - 추가 개선 제안"
+    "agentLog": [
+      { "step": "DOM 트리 분석", "detail": "총 142개 요소, 최상위 6개 섹션 식별" },
+      { "step": "컴포넌트 경계 판단", "detail": "시맨틱 태그 + CSS 레이아웃 패턴 기반 8개 컴포넌트 인식" },
+      { "step": "소스 파일 매핑", "detail": "className 기반으로 6개 소스 파일과 매핑 완료" }
+    ]
   }
 }
 ```
 
-**Error Responses**:
-
-| Status | Code | Message | Description |
-|--------|------|---------|-------------|
-| 400 | INVALID_COMMAND | Cannot understand command | 명령 해석 불가 |
-| 400 | NO_CANVAS_STATE | Canvas state is required | Canvas 상태 누락 |
-| 422 | ELEMENT_NOT_FOUND | Referenced element not found | 언급된 요소를 찾을 수 없음 |
-| 429 | RATE_LIMITED | Too many requests | AI API 호출 제한 |
-| 502 | AI_ERROR | AI service unavailable | AI 서비스 오류 |
-
 ---
 
-#### `POST /api/ai/suggest`
+#### `POST /api/refactor`
 
-**Description**: 현재 레이아웃 분석 후 개선안 제안
+변경된 레이아웃 → 기존 소스코드 리팩토링 생성
 
-**Request Body**:
+**Request**:
 ```json
 {
-  "canvasState": {
-    "elements": "Element[] (required) - 현재 Canvas 오브젝트 배열",
-    "viewport": "object (required)"
-  },
-  "context": "string (optional) - 추가 컨텍스트 (예: '모바일 반응형', 'e-commerce')"
+  "originalComponents": "Component[] - 원본 컴포넌트 상태",
+  "modifiedComponents": "Component[] - 편집 후 컴포넌트 상태",
+  "projectPath": "string - 프로젝트 소스 경로",
+  "changes": [
+    {
+      "componentId": "comp_001",
+      "type": "resize",
+      "from": { "width": 1280, "height": 64 },
+      "to": { "width": 1280, "height": 48 }
+    },
+    {
+      "componentId": "comp_002",
+      "type": "move",
+      "from": { "x": 0, "y": 64 },
+      "to": { "x": 0, "y": 48 }
+    }
+  ]
 }
 ```
 
-**Response 200 OK**:
+**Response**:
+```json
+{
+  "success": true,
+  "data": {
+    "diffs": [
+      {
+        "file": "src/components/Navbar.tsx",
+        "original": "className=\"h-16 px-4\"",
+        "modified": "className=\"h-12 px-4\"",
+        "lineNumber": 8,
+        "explanation": "Navbar 높이 64px → 48px 축소 반영"
+      },
+      {
+        "file": "src/app/page.tsx",
+        "original": "className=\"mt-16\"",
+        "modified": "className=\"mt-12\"",
+        "lineNumber": 15,
+        "explanation": "Navbar 높이 변경에 따른 메인 콘텐츠 상단 여백 조정"
+      }
+    ],
+    "agentLog": [
+      { "step": "변경 분석", "detail": "2개 컴포넌트 변경 감지 (resize 1, move 1)" },
+      { "step": "소스 매핑", "detail": "Navbar.tsx, page.tsx 수정 필요" },
+      { "step": "코드 생성", "detail": "Tailwind 클래스 기반 수정 2건 생성" }
+    ]
+  }
+}
+```
+
+---
+
+#### `POST /api/apply`
+
+Diff를 실제 소스 파일에 적용
+
+**Request**:
+```json
+{
+  "diffs": "Diff[] - /api/refactor 결과",
+  "projectPath": "string"
+}
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "data": {
+    "appliedFiles": ["src/components/Navbar.tsx", "src/app/page.tsx"],
+    "backupCreated": true
+  }
+}
+```
+
+---
+
+#### `POST /api/verify`
+
+리팩토링 결과 검증 + 자동 재수정 루프
+
+**Request**:
+```json
+{
+  "projectPath": "string",
+  "url": "string - 개발서버 URL",
+  "expectedLayout": "Component[] - 사용자가 편집한 컴포넌트 상태",
+  "maxRetries": 3
+}
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "data": {
+    "passed": true,
+    "attempts": [
+      {
+        "attempt": 1,
+        "screenshot": "string (base64)",
+        "mismatches": [
+          {
+            "componentId": "comp_001",
+            "expected": { "height": 48 },
+            "actual": { "height": 52 },
+            "deviation": "4px"
+          }
+        ],
+        "autoFix": {
+          "applied": true,
+          "diffs": [{ "file": "...", "original": "...", "modified": "..." }]
+        }
+      },
+      {
+        "attempt": 2,
+        "screenshot": "string (base64)",
+        "mismatches": [],
+        "autoFix": null
+      }
+    ],
+    "finalPassed": true,
+    "totalAttempts": 2,
+    "agentLog": [
+      { "step": "검증 1회차", "detail": "Navbar 높이 4px 불일치 발견" },
+      { "step": "자동 수정", "detail": "h-12 → py-2.5로 재조정" },
+      { "step": "검증 2회차", "detail": "모든 컴포넌트 위치/크기 일치. 통과." }
+    ]
+  }
+}
+```
+
+---
+
+#### `POST /api/suggest`
+
+에이전트가 현재 레이아웃을 분석하여 디자인 개선안 제안
+
+**Request**:
+```json
+{
+  "components": "Component[] - 현재 컴포넌트 상태",
+  "viewport": { "width": 1280, "height": 720 }
+}
+```
+
+**Response**:
 ```json
 {
   "success": true,
   "data": {
     "suggestions": [
       {
-        "id": "string - 제안 ID",
-        "title": "string - 제안 제목",
-        "description": "string - 상세 설명",
+        "id": "sug_001",
+        "type": "spacing",
+        "title": "카드 간격 균일화",
+        "description": "Card 1-2 간격 16px, Card 2-3 간격 24px → 모두 16px로 균일화",
+        "affectedComponents": ["comp_002_1", "comp_002_2", "comp_002_3"],
         "preview": {
-          "actions": "Action[] - 적용 시 실행될 액션 목록"
+          "changes": [
+            { "componentId": "comp_002_2", "type": "move", "to": { "x": 340 } },
+            { "componentId": "comp_002_3", "type": "move", "to": { "x": 660 } }
+          ]
         },
-        "confidence": "number - 신뢰도 (0-1)"
+        "confidence": 0.9
+      },
+      {
+        "id": "sug_002",
+        "type": "alignment",
+        "title": "Sidebar 상단 정렬",
+        "description": "Sidebar 상단이 Card Grid보다 8px 아래. 맞추면 깔끔해집니다.",
+        "affectedComponents": ["comp_003"],
+        "preview": {
+          "changes": [
+            { "componentId": "comp_003", "type": "move", "to": { "y": 64 } }
+          ]
+        },
+        "confidence": 0.85
       }
+    ],
+    "agentLog": [
+      { "step": "레이아웃 분석", "detail": "8개 컴포넌트, 간격/정렬/크기 검사" },
+      { "step": "이슈 발견", "detail": "간격 불균일 1건, 정렬 미스 1건" }
     ]
   }
 }
 ```
 
-**Error Responses**:
-
-| Status | Code | Message | Description |
-|--------|------|---------|-------------|
-| 400 | NO_CANVAS_STATE | Canvas state is required | Canvas 상태 누락 |
-| 429 | RATE_LIMITED | Too many requests | AI API 호출 제한 |
-| 502 | AI_ERROR | AI service unavailable | AI 서비스 오류 |
-
 ---
 
-#### `POST /api/generate`
+#### `POST /api/responsive`
 
-**Description**: Canvas 상태를 HTML/CSS 코드로 변환
+에이전트가 현재 레이아웃을 모바일 뷰포트 기준으로 자동 재배치
 
-**Code Generation Strategy**:
-- `absolute`: 모든 요소를 `position: absolute` + pixel 좌표로 출력 (기본, 가장 정확)
-- `auto`: Canvas 상태를 Claude AI에 전달하여 요소 간 관계를 분석, 적절한 flex/grid/absolute를 AI가 판단하여 시맨틱한 HTML/CSS 생성
-- `flex` / `grid`: 강제로 해당 레이아웃 전략 적용
-
-**Request Body**:
+**Request**:
 ```json
 {
-  "canvasState": {
-    "elements": "Element[] (required) - 현재 Canvas 오브젝트 배열",
-    "viewport": "object (required)"
-  },
-  "options": {
-    "cssMode": "string (optional) - 'inline' | 'class' | 'tailwind', default: 'class'",
-    "layoutStrategy": "string (optional) - 'flex' | 'grid' | 'absolute' | 'auto', default: 'auto'",
-    "framework": "string (optional) - 'html' | 'react' | 'vue', default: 'html'"
-  }
+  "components": "Component[] - 현재 데스크톱 컴포넌트 상태",
+  "sourceViewport": { "width": 1280, "height": 720 },
+  "targetViewport": { "width": 375, "height": 812 }
 }
 ```
 
-**Request Example**:
-```json
-{
-  "canvasState": {
-    "elements": [
-      {
-        "id": "el_001",
-        "tag": "header",
-        "rect": { "x": 0, "y": 0, "width": 1200, "height": 60 },
-        "children": ["el_002", "el_003"]
-      }
-    ],
-    "viewport": { "width": 1200, "height": 800 }
-  },
-  "options": {
-    "cssMode": "tailwind",
-    "layoutStrategy": "auto",
-    "framework": "react"
-  }
-}
-```
-
-**Response 200 OK**:
+**Response**:
 ```json
 {
   "success": true,
   "data": {
-    "html": "string - 생성된 HTML 코드",
-    "css": "string - 생성된 CSS 코드 (tailwind 모드가 아닌 경우)",
-    "preview": "string - 렌더링 가능한 전체 HTML",
-    "metadata": {
-      "elementsProcessed": "number",
-      "layoutStrategy": "string - 실제 사용된 전략",
-      "warnings": "string[] - 변환 시 주의사항"
-    }
+    "mobileComponents": [
+      {
+        "componentId": "comp_001",
+        "name": "Navigation Bar",
+        "boundingBox": { "x": 0, "y": 0, "width": 375, "height": 48 },
+        "reasoning": "Navbar 너비를 375px에 맞추고, 높이를 48px로 축소 (모바일 비율)"
+      },
+      {
+        "componentId": "comp_002",
+        "name": "Card Grid",
+        "boundingBox": { "x": 0, "y": 56, "width": 375, "height": 600 },
+        "reasoning": "3열 grid → 1열 스택으로 변환, 각 카드를 전체 너비로 확장"
+      },
+      {
+        "componentId": "comp_003",
+        "name": "Sidebar",
+        "boundingBox": { "x": 0, "y": 664, "width": 375, "height": 200 },
+        "reasoning": "사이드바를 메인 콘텐츠 아래로 이동 (모바일에서는 우측 사이드바 비실용적)"
+      }
+    ],
+    "agentLog": [
+      { "step": "뷰포트 분석", "detail": "1280px → 375px, 비율 0.293" },
+      { "step": "레이아웃 전략", "detail": "다열→1열 변환, 사이드바 하단 이동" },
+      { "step": "크기 재계산", "detail": "8개 컴포넌트 재배치 완료" }
+    ]
   }
 }
 ```
 
-**Error Responses**:
+---
 
-| Status | Code | Message | Description |
-|--------|------|---------|-------------|
-| 400 | EMPTY_CANVAS | No elements to generate | Canvas가 비어있음 |
-| 422 | GENERATION_FAILED | Code generation failed | 코드 생성 실패 |
-| 500 | INTERNAL_ERROR | Internal server error | 서버 오류 |
+### 6.6 Visual Editor 구현 방식
 
-### 5.5 Database Schema
+**핵심 아이디어**: 실제 렌더링된 화면을 iframe으로 보여주고, 그 위에 편집 오버레이를 겹친다.
 
-별도 DB 없음. 클라이언트 상태 관리:
+```
+┌─ Visual Editor ──────────────────────────────────────────┐
+│                                                           │
+│  ┌─ iframe (실제 렌더링 화면) ──────────────────────────┐ │
+│  │                                                       │ │
+│  │  ┌─────────── Navbar ──────────────┐  ← 오버레이     │ │
+│  │  │  Logo    Home  About  Contact   │  (드래그 가능)  │ │
+│  │  └─────────────────────────────────┘                  │ │
+│  │                                                       │ │
+│  │  ┌── Card 1 ──┐ ┌── Card 2 ──┐ ┌── Card 3 ──┐      │ │
+│  │  │  [image]   │ │  [image]   │ │  [image]   │      │ │
+│  │  │  Title     │ │  Title     │ │  Title     │      │ │
+│  │  │  Desc...   │ │  Desc...   │ │  Desc...   │      │ │
+│  │  └────────────┘ └────────────┘ └────────────┘      │ │
+│  │       ↑ 리사이즈 핸들       ↑ 드래그 가능             │ │
+│  │                                                       │ │
+│  │  ┌─────────── Footer ─────────────┐                  │ │
+│  │  │  © 2026 Company                │                  │ │
+│  │  └────────────────────────────────┘                  │ │
+│  │                                                       │ │
+│  └───────────────────────────────────────────────────────┘ │
+│                                                           │
+│  [선택된 컴포넌트: Card Grid]                              │
+│  위치: (0, 64)  크기: 960 x 400  소스: page.tsx:12        │
+│                                                           │
+└───────────────────────────────────────────────────────────┘
+```
+
+**구현 방식**:
+1. `iframe`에 개발서버 URL을 로드 (실제 화면 그대로)
+2. iframe 위에 투명한 오버레이 `div`를 겹침
+3. 각 인식된 컴포넌트의 바운딩 박스 위치에 드래그/리사이즈 핸들을 배치
+4. 오버레이에서 이벤트를 캡처 (iframe 내부 클릭 차단)
+5. 드래그/리사이즈 시 오버레이 + 시각적 피드백 (가이드라인, 크기 표시)
+
+### 6.7 Data Model
 
 ```typescript
-// Canvas State (Zustand Store)
-interface CanvasStore {
-  // 스캔된 원본 데이터
-  originalElements: DOMElement[];
-
-  // Canvas 편집 상태
-  elements: CanvasElement[];
-  selectedId: string | null;
+interface ScanResult {
+  screenshot: string;       // base64 PNG
+  pageTitle: string;
   viewport: { width: number; height: number };
+  domTree: DOMElement[];
+  sourceFiles: string[];
+}
 
-  // 히스토리 (Undo/Redo)
-  history: CanvasElement[][];
+interface DetectedComponent {
+  id: string;
+  name: string;             // "Navigation Bar", "Card Grid" 등
+  type: string;             // "navbar", "grid", "sidebar", "footer" 등
+  elementIds: string[];     // 포함하는 DOM 요소 ID
+  boundingBox: { x: number; y: number; width: number; height: number };
+  sourceFile: string;       // 매핑된 소스 파일 경로
+  reasoning: string;        // AI가 왜 이걸 하나의 컴포넌트로 인식했는지
+  children?: DetectedComponent[];
+}
+
+interface ComponentChange {
+  componentId: string;
+  type: 'move' | 'resize';
+  from: { x?: number; y?: number; width?: number; height?: number };
+  to: { x?: number; y?: number; width?: number; height?: number };
+}
+
+interface CodeDiff {
+  file: string;
+  original: string;
+  modified: string;
+  lineNumber: number;
+  explanation: string;
+}
+
+// Zustand Store
+interface EditorStore {
+  // 스캔 결과
+  scanResult: ScanResult | null;
+
+  // 컴포넌트
+  components: DetectedComponent[];
+  selectedComponentId: string | null;
+
+  // 변경 추적
+  changes: ComponentChange[];
+
+  // 리팩토링 결과
+  diffs: CodeDiff[];
+
+  // 히스토리
+  history: ComponentChange[][];
   historyIndex: number;
 
-  // AI 채팅
-  messages: ChatMessage[];
-}
-
-interface CanvasElement {
-  id: string;
-  tag: string;
-  originalId: string | null;
-  className: string;
-  textContent: string;
-  rect: { x: number; y: number; width: number; height: number };
-  computedStyles: Record<string, string>;
-  depth: number;
-  parentId: string | null;
-  children: string[];
-  isLocked: boolean;
-  isVisible: boolean;
-}
-
-interface ChatMessage {
-  role: 'user' | 'assistant';
-  content: string;
-  actions?: Action[];
-  timestamp: number;
+  // 에이전트 상태
+  agentStatus: 'idle' | 'scanning' | 'detecting' | 'refactoring' | 'applying' | 'verifying';
+  agentLog: { step: string; detail: string }[];
 }
 ```
 
-저장: `localStorage` 키 기반
+---
 
-| Key | 내용 |
-|-----|------|
-| `wigdom:canvas-state` | 현재 Canvas 상태 JSON |
-| `wigdom:chat-history` | AI 대화 히스토리 |
-| `wigdom:recent-urls` | 최근 스캔 URL 목록 |
+## 7. AI Agent Design
 
-### 5.6 Architecture Diagram - UI Layout
+### 7.1 에이전트가 하는 일 (5가지)
 
+| # | 기능 | 입력 | 출력 | 에이전트다움 |
+|---|------|------|------|-------------|
+| 1 | **컴포넌트 자동 인식** | DOM 트리 + 스타일 + 스크린샷 | 컴포넌트 목록 + 바운딩 박스 + 소스 매핑 | DOM을 보고 "이건 Navbar"라고 스스로 판단 |
+| 2 | **디자인 개선 제안** | 현재 컴포넌트 배치 | 개선안 목록 (간격/정렬/크기) | 능동적으로 "이 간격이 불균일합니다" 제안 |
+| 3 | **반응형 자동 변환** | 데스크톱 레이아웃 + 타겟 뷰포트 | 모바일 레이아웃 | 다열→1열, 사이드바→하단 등 자율 판단 |
+| 4 | **소스코드 리팩토링** | 변경 delta + 프로젝트 소스 | 코드 diff | 어떤 파일의 어떤 줄을 고칠지 스스로 판단 |
+| 5 | **자기 검증 + 자동 수정** | 수정된 코드 + 편집 의도 | 검증 결과 + 재수정 diff | 불일치 발견 → 스스로 코드 재수정 (최대 3회) |
+
+### 7.2 에이전트가 하지 않는 일
+
+- 기본 레이아웃 조작 → **사용자가 직접 드래그/리사이즈** (에이전트가 대신 하지 않음)
+- 자연어 명령으로 "이거 옮겨줘" → 없음 (직접 만지는 게 더 빠름)
+- 단, **제안 수락** 또는 **반응형 변환** 시에는 에이전트가 배치를 자동 수정
+
+### 7.3 Agent 1: 컴포넌트 자동 인식
+
+**System Prompt**:
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│  ┌─ Toolbar ──────────────────────────────────────────────────┐ │
-│  │ [URL Input........] [Scan] │ [Undo][Redo] │ [Export Code] │ │
-│  └────────────────────────────────────────────────────────────┘ │
-│                                                                  │
-│  ┌─ Element Panel ─┐  ┌─ Canvas Area ──────────────────────┐   │
-│  │                  │  │                                     │   │
-│  │  ▼ header        │  │   ┌────────────────────────────┐   │   │
-│  │    ▼ nav         │  │   │  header                     │   │   │
-│  │      a.logo      │  │   └────────────────────────────┘   │   │
-│  │      ul.menu     │  │                                     │   │
-│  │  ▼ main          │  │   ┌──────┐  ┌──────┐  ┌──────┐   │   │
-│  │    ▼ section     │  │   │ card │  │ card │  │ card │   │   │
-│  │      div.card    │  │   │  1   │  │  2   │  │  3   │   │   │
-│  │      div.card    │  │   └──────┘  └──────┘  └──────┘   │   │
-│  │      div.card    │  │                                     │   │
-│  │  ▼ footer        │  │   ┌────────────────────────────┐   │   │
-│  │                  │  │   │  footer                     │   │   │
-│  │                  │  │   └────────────────────────────┘   │   │
-│  │                  │  │                                     │   │
-│  └──────────────────┘  └─────────────────────────────────────┘   │
-│                                                                  │
-│  ┌─ AI Chat Panel ──────────────────────────────────────────┐   │
-│  │  🤖 레이아웃을 분석했습니다. 카드를 grid로 배치하면        │   │
-│  │     더 깔끔할 것 같아요. 적용할까요?                       │   │
-│  │                                                           │   │
-│  │  [카드 3개를 세로로 쌓아줘________________] [Send]         │   │
-│  └───────────────────────────────────────────────────────────┘   │
-└──────────────────────────────────────────────────────────────────┘
-```
+당신은 웹 페이지의 DOM 구조를 분석하여 UI 컴포넌트를 자동으로 인식하는 전문 에이전트입니다.
 
-## 6. AI Agent Design
+## 입력
+- DOM 트리 (태그, 클래스, 스타일, 위치/크기)
+- 페이지 스크린샷 (시각적 참고)
+- 프로젝트 소스 파일 목록
 
-### 6.1 핵심 차별점: AI 에이전트 자율 실행 루프
+## 작업
+1. DOM 트리를 순회하며 시맨틱 태그(nav, header, main, aside, footer)를 먼저 식별
+2. CSS 레이아웃 패턴(flex, grid, 반복 구조)을 분석하여 논리적 컴포넌트 그룹 판단
+3. 각 컴포넌트의 경계(바운딩 박스)를 결정
+4. className을 기반으로 프로젝트 소스 파일과 매핑
+5. 각 판단에 대한 reasoning을 기록
 
-이 도구의 AI는 단순한 명령-응답 도구가 아니라, **자율적으로 관찰→계획→실행→검증을 반복하는 에이전트**다.
+## 컴포넌트 인식 기준
+- 시맨틱 태그: nav, header, main, section, aside, footer → 독립 컴포넌트
+- 반복 패턴: 같은 클래스의 형제 요소 → 그리드/리스트 컴포넌트 (자식도 개별 조작 가능)
+- 레이아웃 역할: flex/grid 컨테이너 → 레이아웃 컴포넌트
+- 시각적 독립성: 배경색/테두리/그림자가 있는 블록 → 카드/패널 컴포넌트
+- 깊이 기반: 최상위 레벨은 반드시 분리, 깊은 레벨은 의미 있는 단위만
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    AI Agent Loop (Agentic)                       │
-│                                                                  │
-│   사용자: "이 페이지를 모바일 반응형으로 바꿔줘"                    │
-│                        │                                         │
-│                        ▼                                         │
-│              ┌──────────────────┐                                │
-│              │   1. OBSERVE     │  Canvas 상태 전체 분석          │
-│              │   (관찰)         │  요소 크기/위치/관계 파악       │
-│              └────────┬─────────┘                                │
-│                       │                                          │
-│                       ▼                                          │
-│              ┌──────────────────┐                                │
-│              │   2. PLAN        │  Step 1: 헤더 너비 축소         │
-│              │   (계획)         │  Step 2: 사이드바 하단 이동     │
-│              │                  │  Step 3: 카드 1열 정렬          │
-│              │                  │  Step 4: 폰트/여백 조정         │
-│              └────────┬─────────┘                                │
-│                       │                                          │
-│                       ▼                                          │
-│              ┌──────────────────┐                                │
-│              │   3. EXECUTE     │  Tool 호출로 Canvas 조작       │
-│              │   (실행)         │  move → resize → align → style │
-│              └────────┬─────────┘                                │
-│                       │                                          │
-│                       ▼                                          │
-│              ┌──────────────────┐                                │
-│              │   4. VERIFY      │  결과 검증                     │
-│              │   (검증)         │  "카드 간격 너무 좁다"          │
-│              │                  │  → 자동 조정 후 재검증          │
-│              └────────┬─────────┘                                │
-│                       │                                          │
-│                  ┌────┴────┐                                     │
-│                  │ 만족?   │                                     │
-│                  ├─ NO ────┘→ OBSERVE로 돌아감 (자동 반복)       │
-│                  │                                               │
-│                  └─ YES ──→ 사용자에게 결과 보고 + 코드 생성     │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
+## 출력
+각 컴포넌트에 대해: id, name, type, elementIds, boundingBox, sourceFile, reasoning
 ```
 
-**일반 AI 도구 vs 이 에이전트의 차이:**
-
-| | 일반 AI 도구 | DOM Canvas AI Agent |
-|--|-------------|---------------------|
-| 실행 구조 | 명령 1개 → 응답 1개 → 끝 | 목표 1개 → 자율적 멀티 스텝 실행 |
-| 판단 주체 | 사용자가 매 단계 지시 | 에이전트가 스스로 다음 스텝 판단 |
-| 오류 처리 | 사용자가 결과 보고 재지시 | 에이전트가 자체 검증 후 자동 수정 |
-| 복잡한 작업 | 불가 (단일 액션만) | 가능 (계획 수립 후 순차 실행) |
-
-### 6.2 Agent Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                      AI Agent (Claude)                           │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  System Prompt:                                                  │
-│  - DOM/CSS 레이아웃 전문가 역할                                   │
-│  - Canvas 좌표 시스템 이해                                        │
-│  - Agentic Loop: 반드시 OBSERVE→PLAN→EXECUTE→VERIFY 순서 수행    │
-│  - 각 Step 실행 후 검증, 불만족 시 자동 재조정                    │
-│  - 사용자에게 진행 상황을 단계별로 스트리밍 보고                   │
-│                                                                  │
-│  Tools (Canvas 조작):                                            │
-│  ┌─────────────────────────────────────────────────────────┐     │
-│  │ observe_canvas()              → 현재 상태 스냅샷 반환    │     │
-│  │ create_plan(goal, steps[])    → 실행 계획 수립/표시      │     │
-│  │ move_element(id, x, y)       → 요소 이동               │     │
-│  │ resize_element(id, w, h)     → 요소 크기 변경           │     │
-│  │ align_elements(ids[], dir)   → 다중 요소 정렬           │     │
-│  │ distribute_elements(ids[])   → 균등 분배               │     │
-│  │ apply_style(id, styles)      → 스타일 적용             │     │
-│  │ group_elements(ids[])        → 그룹 묶기               │     │
-│  │ verify_layout(criteria)      → 결과 검증 (겹침/간격)    │     │
-│  │ generate_code(options)       → 최종 코드 생성           │     │
-│  │ report_progress(step, status)→ 사용자에게 진행 보고     │     │
-│  └─────────────────────────────────────────────────────────┘     │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### 6.3 Automation Scenarios (에이전트 자동화 시나리오)
-
-에이전트가 자율적으로 멀티 스텝 실행하는 핵심 시나리오들:
-
-#### Scenario 1: 반응형 변환
-```
-사용자: "이 데스크톱 레이아웃을 모바일(375px)용으로 변환해줘"
-
-에이전트 자율 실행:
-  [OBSERVE] 현재 뷰포트 1200px, 3열 그리드, 사이드바 존재
-  [PLAN]    5단계 계획 수립
-    Step 1: 뷰포트 375px 기준으로 요소 크기 재계산
-    Step 2: 3열 → 1열 스택 레이아웃 변환
-    Step 3: 사이드바를 메인 콘텐츠 아래로 이동
-    Step 4: 네비게이션을 햄버거 메뉴 크기로 축소
-    Step 5: 폰트 크기/여백 모바일 비율로 조정
-  [EXECUTE] Step 1~5 순차 실행 (각 Step마다 Canvas에 실시간 반영)
-  [VERIFY]  요소 겹침 검사 → "카드2와 카드3 겹침 발견"
-  [EXECUTE] 자동 간격 조정
-  [VERIFY]  재검증 통과
-  [REPORT]  "모바일 변환 완료. 5개 요소 재배치, 1건 자동 수정"
-```
-
-#### Scenario 2: 레이아웃 자동 정리
-```
-사용자: "이 페이지 레이아웃 좀 정리해줘"
-
-에이전트 자율 실행:
-  [OBSERVE] 요소 간 간격 불균일, 정렬 안 맞음, 2개 요소 겹침
-  [PLAN]    4단계 계획
-    Step 1: 겹치는 요소 분리
-    Step 2: 같은 행에 있는 요소들 수평 정렬
-    Step 3: 간격 균일화 (8px 그리드 기준)
-    Step 4: 전체 중앙 정렬 검증
-  [EXECUTE] Step 1~4 실행
-  [VERIFY]  모든 요소 정렬/간격 검증 통과
-  [REPORT]  "레이아웃 정리 완료. 겹침 1건 해소, 정렬 3건 수정, 간격 5건 균일화"
-```
-
-#### Scenario 3: 디자인 시스템 자동 적용
-```
-사용자: "Tailwind 기준으로 정리해줘"
-
-에이전트 자율 실행:
-  [OBSERVE] 커스텀 px 값들, 비표준 색상, 임의 간격
-  [PLAN]    3단계 계획
-    Step 1: px 값 → 가장 가까운 Tailwind spacing으로 스냅 (4/8/12/16...)
-    Step 2: 색상 → Tailwind 팔레트 매칭
-    Step 3: 폰트 크기 → Tailwind text-sm/base/lg 매핑
-  [EXECUTE] 모든 요소에 Tailwind 호환 값 적용
-  [VERIFY]  시각적 차이 최소화 확인
-  [REPORT]  "Tailwind 매핑 완료. 12개 속성 변환, 원본 대비 시각 차이 < 5%"
-```
-
-#### Scenario 4: 접근성 자동 개선
-```
-사용자: "접근성 문제 있으면 고쳐줘"
-
-에이전트 자율 실행:
-  [OBSERVE] 요소별 분석: 색상 대비, 클릭 영역 크기, 레이블 유무
-  [PLAN]    발견된 문제 기반 계획
-    Issue 1: 버튼 클릭 영역 32x28px → 최소 44x44px 필요
-    Issue 2: 텍스트 색상 대비 3.2:1 → 최소 4.5:1 필요
-    Issue 3: 요소 간 간격 4px → 최소 8px 필요 (터치 타겟)
-  [EXECUTE] 각 이슈 순차 수정
-  [VERIFY]  WCAG 2.1 AA 기준 재검증
-  [REPORT]  "접근성 3건 수정. 대비 비율 4.5:1 이상, 터치 타겟 44px 이상 확보"
-```
-
-### 6.4 Agent Interaction Modes
-
-| Mode | Trigger | 동작 | 에이전트 수준 |
-|------|---------|------|-------------|
-| **Auto** | "~해줘", "~으로 바꿔줘" | 에이전트 루프 자율 실행 (멀티 스텝) | **Agentic** |
-| **Guided** | "~하는 방법 알려줘" | 계획만 제시, 사용자 승인 후 실행 | Semi-Agentic |
-| **Command** | "이거 오른쪽으로 옮겨" | 단일 액션 즉시 실행 | Tool 수준 |
-| **Watch** | 사용자 드래그 중 | 실시간 가이드/스냅 제안 (비침습적) | Passive |
-
-### 6.5 Agent Execution UI (실행 과정 시각화)
-
-에이전트의 멀티 스텝 실행을 사용자가 실시간으로 관찰할 수 있는 UI:
-
-```
-┌─ AI Agent Panel ────────────────────────────────────────────┐
-│                                                              │
-│  🎯 목표: "모바일 반응형으로 변환"                             │
-│                                                              │
-│  ┌─ 실행 계획 ────────────────────────────────────────────┐  │
-│  │  ✅ Step 1: 뷰포트 분석 (1200px → 375px)               │  │
-│  │  ✅ Step 2: 3열 → 1열 스택 변환                         │  │
-│  │  🔄 Step 3: 사이드바 하단 이동 중...                    │  │
-│  │  ⏳ Step 4: 네비게이션 축소                              │  │
-│  │  ⏳ Step 5: 폰트/여백 조정                              │  │
-│  └────────────────────────────────────────────────────────┘  │
-│                                                              │
-│  📊 진행률: ████████░░░░░░ 3/5 (60%)                         │
-│                                                              │
-│  💬 에이전트: "사이드바(el_012)를 메인 콘텐츠 아래로           │
-│     이동하고 있습니다. 너비를 375px에 맞춰 조정 중..."        │
-│                                                              │
-│  [⏸ 일시정지]  [⏭ 이 단계 건너뛰기]  [⏹ 중단]              │
-│                                                              │
-│  ┌─ 변경 로그 ────────────────────────────────────────────┐  │
-│  │  12:01:03  move_element(el_005, 0, 320)                │  │
-│  │  12:01:03  resize_element(el_005, 375, auto)           │  │
-│  │  12:01:04  move_element(el_012, 0, 580)    ← 현재     │  │
-│  └────────────────────────────────────────────────────────┘  │
-│                                                              │
-└──────────────────────────────────────────────────────────────┘
-```
-
-**사용자 제어:**
-- **일시정지**: 에이전트 루프를 멈추고 중간 결과 확인
-- **건너뛰기**: 현재 Step을 건너뛰고 다음으로
-- **중단**: 에이전트 실행 중단, 현재까지 변경사항 유지
-- **되돌리기**: 에이전트 실행 전 상태로 전체 Undo (1-click)
-
-### 6.6 Agent Loop API
-
-#### `POST /api/ai/agent`
-
-**Description**: 에이전트 자율 실행 루프 시작. 스트리밍으로 각 Step의 진행 상황을 실시간 전달.
-
-**Request Body**:
-```json
-{
-  "goal": "string (required) - 에이전트에게 부여할 목표",
-  "canvasState": {
-    "elements": "Element[] (required)",
-    "viewport": "object (required)"
-  },
-  "mode": "string (optional) - 'auto' | 'guided', default: 'auto'",
-  "maxSteps": "number (optional) - 최대 실행 스텝 수, default: 20",
-  "history": "Message[] (optional) - 이전 대화 컨텍스트"
-}
-```
-
-**Response (Server-Sent Events 스트리밍)**:
-```
-event: plan
-data: {"steps": [{"id": 1, "description": "뷰포트 분석"}, ...], "totalSteps": 5}
-
-event: step_start
-data: {"stepId": 1, "description": "뷰포트 분석 중..."}
-
-event: action
-data: {"type": "move_element", "targetId": "el_005", "params": {"x": 0, "y": 320}}
-
-event: step_complete
-data: {"stepId": 1, "status": "success"}
-
-event: verify
-data: {"passed": false, "issues": [{"type": "overlap", "elements": ["el_007", "el_008"]}]}
-
-event: auto_fix
-data: {"description": "겹침 자동 수정", "action": {"type": "move_element", ...}}
-
-event: verify
-data: {"passed": true}
-
-event: complete
-data: {"summary": "5단계 실행 완료, 자동 수정 1건", "totalActions": 12}
-```
-
-**Error Responses**:
-
-| Status | Code | Message | Description |
-|--------|------|---------|-------------|
-| 400 | INVALID_GOAL | Cannot understand goal | 목표 해석 불가 |
-| 400 | NO_CANVAS_STATE | Canvas state is required | Canvas 상태 누락 |
-| 429 | RATE_LIMITED | Too many requests | AI API 호출 제한 |
-| 502 | AI_ERROR | AI service unavailable | AI 서비스 오류 |
-
-#### `POST /api/ai/agent/control`
-
-**Description**: 실행 중인 에이전트 제어 (일시정지/재개/중단)
-
-**Request Body**:
-```json
-{
-  "sessionId": "string (required) - 에이전트 세션 ID",
-  "action": "string (required) - 'pause' | 'resume' | 'skip' | 'stop'"
-}
-```
-
-### 6.7 Agent Tool Definitions
-
+**Tool 정의**:
 ```typescript
-// AI Agent가 사용하는 Tool 정의 (Agentic Loop 지원)
-const agentTools = [
-  // === Agent Loop Control Tools ===
+const detectorTools = [
   {
-    name: "observe_canvas",
-    description: "현재 Canvas 상태를 분석하여 요소 관계, 정렬 상태, 겹침, 간격 등을 파악",
+    name: "identify_component",
+    description: "DOM 요소 그룹을 하나의 컴포넌트로 인식",
     input_schema: {
       type: "object",
       properties: {
-        focus: { type: "string", description: "분석 초점 (예: 'alignment', 'spacing', 'overlap', 'all')" }
-      }
-    }
-  },
-  {
-    name: "create_plan",
-    description: "목표 달성을 위한 실행 계획 수립. 사용자에게 계획을 표시하고 실행 시작",
-    input_schema: {
-      type: "object",
-      properties: {
-        goal: { type: "string", description: "달성 목표" },
-        steps: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: {
-              description: { type: "string" },
-              targetElements: { type: "array", items: { type: "string" } }
-            }
-          }
-        }
+        name: { type: "string", description: "컴포넌트 이름 (예: 'Navigation Bar')" },
+        type: { type: "string", enum: ["navbar", "header", "hero", "grid", "card", "sidebar", "footer", "section", "form", "modal"] },
+        elementIds: { type: "array", items: { type: "string" } },
+        sourceFile: { type: "string", description: "매핑된 소스 파일 경로" },
+        reasoning: { type: "string", description: "이 판단의 근거" }
       },
-      required: ["goal", "steps"]
+      required: ["name", "type", "elementIds", "reasoning"]
     }
   },
   {
-    name: "verify_layout",
-    description: "현재 Canvas 레이아웃의 품질을 검증 (겹침, 간격, 정렬, 접근성 등)",
-    input_schema: {
-      type: "object",
-      properties: {
-        criteria: {
-          type: "array",
-          items: { type: "string", enum: ["overlap", "spacing", "alignment", "accessibility", "responsive"] },
-          description: "검증할 기준 목록"
-        }
-      },
-      required: ["criteria"]
-    }
-  },
-  {
-    name: "report_progress",
-    description: "사용자에게 현재 진행 상황 보고",
-    input_schema: {
-      type: "object",
-      properties: {
-        stepId: { type: "number" },
-        status: { type: "string", enum: ["start", "progress", "complete", "failed", "auto_fix"] },
-        message: { type: "string" }
-      },
-      required: ["status", "message"]
-    }
-  },
-
-  // === Canvas Manipulation Tools ===
-  {
-    name: "move_element",
-    description: "Canvas에서 요소를 지정된 좌표로 이동",
-    input_schema: {
-      type: "object",
-      properties: {
-        elementId: { type: "string", description: "이동할 요소 ID" },
-        x: { type: "number", description: "새 X 좌표" },
-        y: { type: "number", description: "새 Y 좌표" }
-      },
-      required: ["elementId", "x", "y"]
-    }
-  },
-  {
-    name: "resize_element",
-    description: "요소의 크기를 변경",
+    name: "analyze_layout_pattern",
+    description: "DOM 영역의 레이아웃 패턴 분석 (flex, grid, stack 등)",
     input_schema: {
       type: "object",
       properties: {
         elementId: { type: "string" },
-        width: { type: "number" },
-        height: { type: "number" }
+        focus: { type: "string", enum: ["children", "siblings", "parent"] }
       },
       required: ["elementId"]
     }
   },
   {
-    name: "align_elements",
-    description: "여러 요소를 정렬 (left, center, right, top, middle, bottom)",
+    name: "map_to_source",
+    description: "DOM 요소의 className/id를 프로젝트 소스 파일과 매핑",
     input_schema: {
       type: "object",
       properties: {
-        elementIds: { type: "array", items: { type: "string" } },
-        direction: { type: "string", enum: ["left", "center", "right", "top", "middle", "bottom"] }
+        className: { type: "string" },
+        sourceFiles: { type: "array", items: { type: "string" } }
       },
-      required: ["elementIds", "direction"]
-    }
-  },
-  {
-    name: "distribute_elements",
-    description: "요소들을 균등 분배",
-    input_schema: {
-      type: "object",
-      properties: {
-        elementIds: { type: "array", items: { type: "string" } },
-        axis: { type: "string", enum: ["horizontal", "vertical"] },
-        spacing: { type: "number", description: "요소 간 간격 (px)" }
-      },
-      required: ["elementIds", "axis"]
-    }
-  },
-  {
-    name: "apply_style",
-    description: "요소에 스타일을 적용",
-    input_schema: {
-      type: "object",
-      properties: {
-        elementId: { type: "string", description: "대상 요소 ID" },
-        styles: { type: "object", description: "적용할 CSS 스타일 (key-value)" }
-      },
-      required: ["elementId", "styles"]
-    }
-  },
-  {
-    name: "group_elements",
-    description: "여러 요소를 그룹으로 묶기 (함께 이동/정렬)",
-    input_schema: {
-      type: "object",
-      properties: {
-        elementIds: { type: "array", items: { type: "string" }, description: "그룹에 포함할 요소 ID 배열" }
-      },
-      required: ["elementIds"]
-    }
-  },
-  {
-    name: "generate_code",
-    description: "현재 Canvas 상태를 HTML/CSS 코드로 변환",
-    input_schema: {
-      type: "object",
-      properties: {
-        elementIds: { type: "array", items: { type: "string" } },
-        cssMode: { type: "string", enum: ["inline", "class", "tailwind"] },
-        framework: { type: "string", enum: ["html", "react", "vue"] }
-      },
-      required: ["elementIds"]
+      required: ["className"]
     }
   }
 ];
 ```
 
-## 7. Implementation Phases
+### 7.4 Agent 2: 소스코드 리팩토링
 
-### Phase 1: MVP Core (Day 1 - 핵심)
-- [ ] Next.js 프로젝트 초기 설정 (pnpm, TypeScript, Tailwind)
-- [ ] DOM 스캔 API (`/api/scan`) - Puppeteer headless → getBoundingClientRect + getComputedStyle
-- [ ] URL 유효성 검사 (localhost 허용 목록, SSRF 방어)
-- [ ] 요소 스마트 필터링 (invisible/trivial 제거, max 200개)
-- [ ] DOM → 플랫 오브젝트 변환 로직
-- [ ] Canvas 렌더링 (react-konva) - 색상 사각형 + 태그 라벨
-- [ ] 드래그 이동 기능
-- [ ] 기본 UI 레이아웃 (Toolbar + Canvas + Element Panel)
-**Deliverable**: URL 입력 → DOM 시각화 → 드래그 편집 가능한 프로토타입
+**System Prompt**:
+```
+당신은 시각적 레이아웃 변경을 기존 소스코드에 반영하는 코드 리팩토링 전문 에이전트입니다.
 
-### Phase 2: AI Agent Loop (Day 1-2 - 핵심 차별화)
-- [ ] Claude API 연동 (tool_use 활성화, SSE 스트리밍)
-- [ ] Agent Loop 구현: OBSERVE→PLAN→EXECUTE→VERIFY 자율 반복
-- [ ] Agent Tool 정의 (observe_canvas, create_plan, verify_layout, report_progress + Canvas 조작 도구)
-- [ ] `/api/ai/agent` 엔드포인트 (SSE 스트리밍 응답)
-- [ ] `/api/ai/agent/control` 엔드포인트 (일시정지/중단)
-- [ ] Agent 실행 과정 시각화 UI (계획 표시, Step 진행률, 변경 로그)
-- [ ] 자동화 시나리오 구현: 반응형 변환, 레이아웃 정리
-- [ ] AI Chat Panel UI (목표 입력 + 실행 제어)
-**Deliverable**: 자연어 목표 → 에이전트가 멀티 스텝 자율 실행 → 결과 보고
+## 입력
+- 원본 컴포넌트 상태 (위치/크기)
+- 수정된 컴포넌트 상태 (위치/크기)
+- 프로젝트 소스코드 (관련 파일들)
 
-### Phase 3: Code Generation & Export (Day 2)
-- [ ] Canvas → HTML/CSS 역변환: 기본 모드(position: absolute) 구현
-- [ ] Auto 모드: Canvas 상태를 Claude AI에 전달하여 flex/grid 레이아웃 자동 생성
-- [ ] `/api/generate` 엔드포인트 구현
-- [ ] 코드 미리보기 패널
-- [ ] 클립보드 복사 / 파일 다운로드
-**Deliverable**: 편집 결과를 코드로 export 가능
+## 작업
+1. 각 컴포넌트의 변경 사항(이동, 크기 변경)을 분석
+2. 변경에 해당하는 소스 파일과 라인을 찾음
+3. CSS/Tailwind 클래스 또는 스타일 속성을 수정하는 diff를 생성
+4. 연쇄 영향 분석 (예: Navbar 높이 변경 → 아래 컨텐츠의 margin-top 조정)
+5. 각 수정에 대한 설명을 기록
 
-### Phase 4: Polish & Demo (Day 2)
-- [ ] Undo/Redo 구현
-- [ ] 스냅/그리드 가이드
-- [ ] 오브젝트 선택 시 정보 패널
-- [ ] 에러 핸들링 및 로딩 상태
-- [ ] 데모 시나리오 준비
-**Deliverable**: 해커톤 데모용 완성된 프로토타입
+## 수정 전략
+- Tailwind 프로젝트: className의 유틸리티 클래스 변경 (h-16 → h-12 등)
+- CSS Module 프로젝트: .module.css 파일의 속성 값 변경
+- Inline Style 프로젝트: style 속성의 값 변경
+- 연쇄 영향: 부모/형제 요소의 관련 속성도 함께 수정
 
-## 8. Success Metrics
+## 출력
+파일별 diff 목록: file, original, modified, lineNumber, explanation
+```
 
-| Metric | Target | Measurement |
-|--------|--------|-------------|
-| DOM 스캔 성공률 | > 90% (일반 웹페이지) | 테스트 URL 10개 이상 |
-| 드래그 편집 FPS | 60fps | Chrome DevTools Performance |
-| AI 명령 정확도 | > 80% (기본 명령) | 테스트 명령 20개 기준 |
-| 코드 생성 → 브라우저 렌더링 일치도 | > 70% | 시각적 비교 |
-| 데모 완료 시간 | < 3분 | 전체 플로우 1회 |
-| 해커톤 심사 점수 | 상위 30% | 심사 결과 |
+### 7.5 에이전트 실행 흐름
+
+```
+사용자: URL + 프로젝트 경로 입력 → [스캔]
+                │
+                ▼
+┌──────────────────────────────────┐
+│  Step 1: DOM 스캔                │  Puppeteer → DOM 트리 + 스크린샷
+│  AgentPanel: "화면 스캔 중..."    │
+└──────────┬───────────────────────┘
+           │
+           ▼
+┌──────────────────────────────────┐
+│  Step 2: 컴포넌트 인식 (AI)      │  Claude → 컴포넌트 경계 자동 판단
+│  AgentPanel: "컴포넌트 인식 중..." │  → "Navbar 발견", "Card Grid 발견"
+└──────────┬───────────────────────┘
+           │
+           ▼
+┌──────────────────────────────────┐
+│  Step 3: 디자인 개선 제안 (AI)   │  Claude → 레이아웃 분석 → 개선안 도출
+│  AgentPanel: "레이아웃 분석 중..."│  → "카드 간격 불균일", "Sidebar 정렬 미스"
+│  제안 카드 표시 [적용] [무시]     │  → 적용 시 에이전트가 자동 배치 수정
+└──────────┬───────────────────────┘
+           │
+           ▼
+┌──────────────────────────────────┐
+│  Step 4: 편집 모드               │  컴포넌트별 오버레이 표시
+│  → 사용자가 직접 드래그/리사이즈  │
+│  → [모바일 보기] 버튼 제공        │
+│     → 에이전트가 375px 자동 재배치│
+└──────────┬───────────────────────┘
+           │
+           │  사용자: [저장]
+           ▼
+┌──────────────────────────────────┐
+│  Step 5: 코드 리팩토링 (AI)      │  Claude → 소스코드 diff 생성
+│  AgentPanel: "코드 분석 중..."    │
+└──────────┬───────────────────────┘
+           │
+           ▼
+┌──────────────────────────────────┐
+│  Step 6: Diff 미리보기           │  사용자가 수정 내용 확인
+│  사용자: [적용] 또는 [취소]       │
+└──────────┬───────────────────────┘
+           │ 적용
+           ▼
+┌──────────────────────────────────┐
+│  Step 7: 소스 파일 수정 + 백업    │  실제 파일 쓰기
+└──────────┬───────────────────────┘
+           │
+           ▼
+┌──────────────────────────────────┐
+│  Step 8: 자기 검증 (AI)          │  Puppeteer 재렌더링 → 편집 의도와 비교
+│  AgentPanel: "검증 중..."         │
+│                                  │
+│  ┌────────┐                      │
+│  │ 일치?  │── YES → "검증 통과"  │
+│  └───┬────┘                      │
+│      │ NO                        │
+│      ▼                           │
+│  자동 재수정 (diff 재생성 + 적용) │
+│  → 재검증 (최대 3회 루프)         │
+│                                  │
+│  AgentPanel: "불일치 발견 →       │
+│   자동 수정 → 재검증 통과"        │
+└──────────────────────────────────┘
+```
+
+---
+
+## 8. Trae.ai 활용 전략
+
+| 활용 시점 | Trae 기능 | 목적 |
+|-----------|-----------|------|
+| 스캐폴딩 | Builder Mode | Next.js + Tailwind 보일러플레이트 |
+| UI 컴포넌트 | Chat Mode | 에디터 UI 빠른 프로토타이핑 |
+| 디버깅 | Chat Mode | Puppeteer/오버레이 이슈 해결 |
+| 핵심 로직 | Claude Code 병행 | Agent Tool Use, 소스 리팩토링 |
+| 발표 | 캡처 | Trae 활용 증거 |
+
+---
+
+## 9. Fallback 전략
+
+### 9.1 기술 Fallback
+
+| 위험 | Plan A | Plan B | Plan C |
+|------|--------|--------|--------|
+| Puppeteer 불가 | Puppeteer headless | 사전 캐싱 JSON + 스크린샷 | 데모 모드 |
+| 컴포넌트 인식 부정확 | Claude 자동 인식 | 사용자가 수동으로 영역 지정 | 사전 인식 결과 캐싱 |
+| 소스코드 리팩토링 실패 | Claude diff 생성 | 수정 가이드만 텍스트로 제시 | 새 CSS 파일 생성 |
+| iframe 오버레이 이슈 | iframe + div 오버레이 | 스크린샷 이미지 + 오버레이 | Canvas 기반 렌더링 |
+| 소스 파일 쓰기 권한 | fs.writeFile | diff 클립보드 복사 | 콘솔 출력 |
+
+### 9.2 데모 Fallback
+
+| 상황 | 대응 |
+|------|------|
+| 인터넷 끊김 | 데모 모드 (캐싱 데이터) |
+| Claude API 다운 | 사전 녹화 에이전트 실행 영상 |
+| 전체 다운 | 풀 데모 녹화 영상 (3분) |
+
+### 9.3 시간 Fallback
+
+| 남은 시간 | 절삭 | 보존 |
+|-----------|------|------|
+| 5h+ | 없음 | 전체 |
+| 3h | 검증(Step 6), 고급 편집 기능 | 스캔 + 컴포넌트 인식 + 기본 편집 + 리팩토링 |
+| 2h | 리팩토링(Step 4-5) | 스캔 + 컴포넌트 인식 + 편집만 |
+| 1h | 편집 + 리팩토링 | 스캔 + 컴포넌트 인식 데모만 |
+
+**핵심**: 컴포넌트 자동 인식이 살아야 "에이전트"로 인정받는다.
+
+---
+
+## 10. 데모 시나리오 (3분)
+
+```
+[0:00 ~ 0:15] 문제 소개
+  "AI 시대에 디자이너 없이 개발자가 직접 화면을 만듭니다.
+   코드로 대충 구성은 하는데, 보기 좋게 다듬는 건 여전히 고통입니다."
+
+[0:15 ~ 0:40] DOM 스캔 + 컴포넌트 자동 인식 ★에이전트 1★
+  1. 개발서버 URL + 프로젝트 경로 입력 → "스캔"
+  2. AI 에이전트가 컴포넌트 인식
+     → "Navbar 발견", "Card Grid 발견", "Sidebar 발견"
+  3. 각 컴포넌트에 선택/드래그 핸들 표시
+
+  ★ "에이전트가 스스로 DOM을 분석하고 컴포넌트를 판단합니다."
+
+[0:40 ~ 1:00] 디자인 개선 제안 ★에이전트 2★
+  4. 에이전트가 능동적으로 제안 표시
+     → "카드 간격이 불균일합니다. 균일하게 맞출까요?"
+     → "Sidebar 상단이 Card Grid와 8px 어긋나 있습니다."
+  5. "적용" 클릭 → 에이전트가 자동으로 배치 수정
+
+  ★ "에이전트가 먼저 문제를 찾아서 제안합니다. 챗봇이 아니라 능동적 에이전트."
+
+[1:00 ~ 1:30] 시각적 편집 + 반응형 변환 ★에이전트 3★
+  6. 사용자가 직접 Navbar 높이 리사이즈
+  7. "모바일 보기" 클릭 → 에이전트가 375px 기준 자동 재배치
+     → 3열→1열, 사이드바→하단 이동
+  8. 결과 확인 후 미세 조정
+
+  ★ "모바일 변환도 에이전트가 알아서. 다열→1열, 사이드바 이동 등을 자율 판단."
+
+[1:30 ~ 2:15] 코드 리팩토링 ★에이전트 4★
+  9. "저장" → AI가 소스코드 diff 생성
+     → "Navbar.tsx의 h-16 → h-12", "page.tsx의 grid-cols-3 수정"
+  10. Diff 미리보기 확인 → "적용"
+
+[2:15 ~ 2:40] 자기 검증 ★에이전트 5★
+  11. 에이전트가 수정된 코드를 다시 렌더링
+  12. "Navbar 높이 4px 불일치 발견 → 자동 재수정 → 재검증 통과"
+  → AgentPanel에 검증 루프 과정 실시간 표시
+
+  ★ "에이전트가 결과를 스스로 검증하고, 안 맞으면 스스로 다시 고칩니다."
+
+[2:40 ~ 3:00] 마무리
+  "WIGSS의 에이전트는 5가지를 스스로 합니다.
+   컴포넌트를 인식하고, 개선을 제안하고, 반응형을 변환하고,
+   코드를 리팩토링하고, 결과를 검증합니다.
+   개발자는 드래그만 하면 됩니다."
+```
+
+---
+
+## 11. 예상 질문 & 답변
+
+| 질문 | 답변 |
+|------|------|
+| "Figma랑 뭐가 다른가요?" | "Figma는 디자인 도구고, WIGSS은 코드와 연결됩니다. 실제 렌더링된 화면을 편집하면 소스코드가 바뀝니다." |
+| "에이전트가 컴포넌트를 잘못 인식하면?" | "사용자가 수동으로 영역을 조정할 수 있고, 인식 결과에 reasoning이 표시되어 왜 그렇게 판단했는지 투명합니다." |
+| "어떤 프로젝트에서 작동하나요?" | "현재는 React/Next.js + Tailwind 프로젝트에 최적화. CSS Module, inline style도 지원 가능." |
+| "코드가 깨지면 어떡하나요?" | "적용 전 반드시 diff 미리보기를 보여주고, 사용자가 확인 후 적용합니다. 백업도 자동 생성." |
+| "자연어 명령은 없나요?" | "기본 조작은 드래그가 더 빠릅니다. 대신 에이전트가 능동적으로 개선을 제안하고, 반응형 변환도 자동으로 해줍니다." |
+| "자기 검증이 실패하면?" | "최대 3회 자동 재수정합니다. 3회 후에도 불일치 시 사용자에게 수동 확인을 요청합니다." |
+
+---
+
+## 12. Success Metrics
+
+| Metric | Target |
+|--------|--------|
+| DOM 스캔 성공률 | > 90% |
+| 컴포넌트 인식 정확도 | > 70% (주요 컴포넌트) |
+| 드래그/리사이즈 FPS | 60fps |
+| 코드 리팩토링 → 빌드 성공률 | > 80% |
+| 자기 검증 통과율 (3회 이내) | > 90% |
+| 디자인 제안 유효성 | > 70% |
+| 반응형 변환 성공률 | > 70% |
+| 리팩토링 후 레이아웃 일치도 | > 70% |
+| 데모 완료 시간 | < 3분 |

@@ -4,4 +4,4 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-This is a hackathon project. The repository is currently empty and awaiting initial implementation.
+**WIGSS** (Style Shaper) is a hackathon project by Team WIGSS (WIGTN Crew). The repository is currently empty and awaiting initial implementation.
