@@ -125,8 +125,8 @@ Browser
 ### Installation
 
 ```bash
-git clone https://github.com/your-username/wigdom.git
-cd wigdom
+git clone https://github.com/your-username/wigss.git
+cd wigss
 pnpm install
 ```
 
@@ -140,11 +140,17 @@ cp .env.example .env.local
 
 ### Run
 
+**Development mode:**
 ```bash
 pnpm dev
 ```
+Opens WIGSS editor on `localhost:3000` with demo-target on `localhost:3001`.
 
-Open `http://localhost:3000`, enter your dev server URL and project path, and hit **Scan**.
+**Production usage (after npm publish):**
+```bash
+cd your-project
+npx wigss --port 3000
+```
 
 ---
 
@@ -177,8 +183,9 @@ Open `http://localhost:3000`, enter your dev server URL and project path, and hi
 
 ```
 docs/
-├── prd/PRD_wigdom.md          # Product Requirements (v3.1)
-└── todo_plan/PLAN_wigdom.md   # Execution Plan (D-1 / D-Day)
+├── prd/PRD_wigss.md           # Product Requirements (v4.0)
+├── todo_plan/PLAN_wigss.md    # Execution Plan (D-1 / D-Day)
+└── ARCHITECTURE.md            # System Architecture
 ```
 
 ## License

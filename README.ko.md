@@ -125,8 +125,8 @@ Browser
 ### 설치
 
 ```bash
-git clone https://github.com/your-username/wigdom.git
-cd wigdom
+git clone https://github.com/your-username/wigss.git
+cd wigss
 pnpm install
 ```
 
@@ -140,11 +140,17 @@ cp .env.example .env.local
 
 ### 실행
 
+**개발 모드:**
 ```bash
 pnpm dev
 ```
+WIGSS 에디터(`localhost:3000`)와 demo-target(`localhost:3001`)이 실행됩니다.
 
-`http://localhost:3000` 접속 &rarr; 개발 서버 URL + 프로젝트 경로 입력 &rarr; **스캔**.
+**프로덕션 사용 (npm publish 후):**
+```bash
+cd your-project
+npx wigss --port 3000
+```
 
 ---
 
@@ -177,8 +183,9 @@ pnpm dev
 
 ```
 docs/
-├── prd/PRD_wigdom.md          # 제품 요구사항 정의서 (v3.1)
-└── todo_plan/PLAN_wigdom.md   # 실행 계획 (D-1 / D-Day)
+├── prd/PRD_wigss.md           # 제품 요구사항 정의서 (v4.0)
+├── todo_plan/PLAN_wigss.md    # 실행 계획 (D-1 / D-Day)
+└── ARCHITECTURE.md            # 시스템 아키텍처
 ```
 
 ## 라이선스
