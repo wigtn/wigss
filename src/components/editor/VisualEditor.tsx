@@ -87,7 +87,9 @@ export default function VisualEditor() {
   const targetUrl = useEditorStore((s) => s.targetUrl);
   const components = useEditorStore((s) => s.components);
   const selectedComponentId = useEditorStore((s) => s.selectedComponentId);
+  const hoveredComponentId = useEditorStore((s) => s.hoveredComponentId);
   const viewportMode = useEditorStore((s) => s.viewportMode);
+  const agentStatus = useAgentStore((s) => s.status);
 
   const [canvasHeight, setCanvasHeight] = useState(MIN_IFRAME_HEIGHT);
   const pageHeightRef = useRef(MIN_IFRAME_HEIGHT);
@@ -275,6 +277,25 @@ export default function VisualEditor() {
               title="Target page preview"
             />
 
+            {/* Center spinner for agent status */}
+            {agentStatus !== 'idle' && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ zIndex: 9998 }}>
+                <div className="flex flex-col items-center gap-3 bg-gray-900/80 backdrop-blur-md rounded-2xl px-8 py-6 border border-gray-700/50 shadow-2xl">
+                  <div className="w-8 h-8 rounded-full animate-spin" style={{ border: '3px solid #4b5563', borderTopColor: '#a78bfa' }} />
+                  <span className="text-sm font-medium text-gray-200">
+                    {agentStatus === 'scanning' && 'Scanning...'}
+                    {agentStatus === 'detecting' && 'Detecting Components...'}
+                    {agentStatus === 'suggesting' && 'AI Suggestions...'}
+                    {agentStatus === 'feedback' && 'Analyzing...'}
+                    {agentStatus === 'chatting' && 'AI Thinking...'}
+                    {agentStatus === 'refactoring' && 'Saving...'}
+                    {agentStatus === 'applying' && 'Applying...'}
+                    {agentStatus === 'verifying' && 'Verifying...'}
+                  </span>
+                </div>
+              </div>
+            )}
+
             {/* Overlay: draggable/resizable component boxes */}
             <div
               ref={overlayRef}
@@ -283,11 +304,12 @@ export default function VisualEditor() {
             >
               {sortedComponents.map((comp, idx) => {
                 const isSelected = comp.id === selectedComponentId;
+                const isHovered = comp.id === hoveredComponentId;
                 const depth = comp.depth ?? 0;
                 const colors = isSelected ? SELECTED : (TYPE_COLORS[comp.type] || TYPE_COLORS.section);
                 const opacity = depthOpacity(depth);
                 const area = comp.boundingBox.width * comp.boundingBox.height;
-                const isBackground = area >= areaThreshold && !isSelected;
+                const isBackground = area >= areaThreshold && !isSelected && !isHovered;
 
                 return (
                   <div
@@ -310,11 +332,14 @@ export default function VisualEditor() {
                       height: comp.boundingBox.height,
                       border: isSelected
                         ? `2.5px solid ${colors.stroke}`
-                        : isBackground
-                          ? `1px dashed ${colors.stroke}40`
-                          : `1px dashed ${colors.stroke}80`,
-                      backgroundColor: 'transparent',
-                      opacity: isBackground ? 0.3 : opacity,
+                        : isHovered
+                          ? '2.5px solid #facc15'
+                          : isBackground
+                            ? `1px dashed ${colors.stroke}40`
+                            : `1px dashed ${colors.stroke}80`,
+                      backgroundColor: isHovered ? 'rgba(250, 204, 21, 0.08)' : 'transparent',
+                      boxShadow: isHovered ? '0 0 16px rgba(250, 204, 21, 0.5), 0 0 32px rgba(250, 204, 21, 0.2)' : 'none',
+                      opacity: isBackground ? 0.3 : isHovered ? 1 : opacity,
                       cursor: isSelected ? (interaction?.compId === comp.id ? 'grabbing' : 'grab') : (isBackground ? 'default' : 'pointer'),
                       boxSizing: 'border-box',
                       pointerEvents: isBackground ? 'none' : 'auto',

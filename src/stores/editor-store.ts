@@ -6,6 +6,7 @@ interface EditorState {
   scanResult: ScanResult | null;
   components: DetectedComponent[];
   selectedComponentId: string | null;
+  hoveredComponentId: string | null;
   changes: ComponentChange[];
   viewportMode: 'desktop' | 'mobile';
   mobileComponents: DetectedComponent[] | null;
@@ -27,6 +28,7 @@ interface EditorState {
   setScanResult: (result: ScanResult) => void;
   setComponents: (components: DetectedComponent[]) => void;
   selectComponent: (id: string | null) => void;
+  hoverComponent: (id: string | null) => void;
   addChange: (change: ComponentChange) => void;
   clearChanges: () => void;
   setViewportMode: (mode: 'desktop' | 'mobile') => void;
@@ -55,6 +57,7 @@ const initialState = {
   scanResult: null,
   components: [],
   selectedComponentId: null,
+  hoveredComponentId: null,
   changes: [],
   viewportMode: 'desktop' as const,
   mobileComponents: null,
@@ -109,6 +112,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setComponents: (components) => set({ components }),
 
   selectComponent: (id) => set({ selectedComponentId: id }),
+
+  hoverComponent: (id) => set({ hoveredComponentId: id }),
 
   addChange: (change) =>
     set((state) => {

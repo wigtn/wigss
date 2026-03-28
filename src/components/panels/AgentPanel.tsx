@@ -141,7 +141,6 @@ function SuggestionsSection() {
   const removeSuggestion = useAgentStore((s) => s.removeSuggestion);
   const applyChange = useEditorStore((s) => s.applyChange);
   const sendMessage = useAgentStore((s) => s.sendMessage);
-  const selectComponent = useEditorStore((s) => s.selectComponent);
   const [hoveredSugId, setHoveredSugId] = useState<string | null>(null);
 
   if (suggestions.length === 0) return null;
@@ -161,18 +160,19 @@ function SuggestionsSection() {
     removeSuggestion(id);
   };
 
+  const hoverComponent = useEditorStore((s) => s.hoverComponent);
+
   const handleHoverEnter = (sug: Suggestion) => {
     setHoveredSugId(sug.id);
-    // Highlight the first affected component
     const firstChange = sug.changes[0];
     if (firstChange) {
-      selectComponent(firstChange.componentId);
+      hoverComponent(firstChange.componentId);
     }
   };
 
   const handleHoverLeave = () => {
     setHoveredSugId(null);
-    selectComponent(null);
+    hoverComponent(null);
   };
 
   return (
