@@ -125,16 +125,24 @@ export default function VisualEditor() {
       }
       if (e.data?.type === 'wigss-scan-result' && Array.isArray(e.data.elements)) {
         console.log('[VisualEditor] Received iframe scan:', e.data.elements.length, 'elements');
-        const comps = e.data.elements.map((el: any, i: number) => ({
-          id: `comp-${i}-${el.id || el.tagName}`,
-          name: truncateLabel(el.tagName, el.className, el.textContent),
-          type: guessComponentType(el.tagName, el.className, el.attributes || {}),
-          elementIds: [el.id],
-          boundingBox: el.boundingBox,
-          sourceFile: '',
-          reasoning: 'iframe postMessage (pixel-accurate)',
-          depth: el.depth ?? 0,
-        }));
+        const comps = e.data.elements.map((el: any, i: number) => {
+          const attrs = el.attributes || {};
+          const dataComp = attrs['data-component'] || '';
+          // Map data-component to source file path
+          const sourceFile = dataComp
+            ? `src/components/${dataComp.charAt(0).toUpperCase() + dataComp.slice(1)}.tsx`
+            : '';
+          return {
+            id: `comp-${i}-${el.id || el.tagName}`,
+            name: truncateLabel(el.tagName, el.className, el.textContent),
+            type: guessComponentType(el.tagName, el.className, attrs),
+            elementIds: [el.id],
+            boundingBox: el.boundingBox,
+            sourceFile,
+            reasoning: dataComp ? `data-component="${dataComp}" → ${sourceFile}` : 'iframe scan',
+            depth: el.depth ?? 0,
+          };
+        });
         useEditorStore.getState().setComponents(comps);
         // Sync to server so suggestions use correct component IDs
         sendRef.current('components_synced', { components: comps });
@@ -230,12 +238,21 @@ export default function VisualEditor() {
     };
   }, [interaction]);
 
-  // ── Sort by area: largest first (background), smallest last (on top, clickable) ──
+  // ── Sort: biggest area first (background, low z), smallest last (foreground, high z) ──
   const sortedComponents = [...components].sort((a, b) => {
     const areaA = a.boundingBox.width * a.boundingBox.height;
     const areaB = b.boundingBox.width * b.boundingBox.height;
-    return areaB - areaA; // big boxes behind, small boxes on top
+    return areaB - areaA;
   });
+
+  // Threshold: top 15% largest components are "background" — click passes through
+  const areaThreshold = sortedComponents.length > 5
+    ? (() => {
+        const areas = sortedComponents.map(c => c.boundingBox.width * c.boundingBox.height);
+        const sorted = [...areas].sort((a, b) => b - a);
+        return sorted[Math.floor(sorted.length * 0.15)] || 0;
+      })()
+    : Infinity; // If few components, all are clickable
 
   const fixedWidth = viewportMode === 'mobile' ? MOBILE_WIDTH : DESKTOP_WIDTH;
 
@@ -273,11 +290,18 @@ export default function VisualEditor() {
                 const depth = comp.depth ?? 0;
                 const colors = isSelected ? SELECTED : (TYPE_COLORS[comp.type] || TYPE_COLORS.section);
                 const opacity = depthOpacity(depth);
+                const area = comp.boundingBox.width * comp.boundingBox.height;
+                const isBackground = area >= areaThreshold && !isSelected;
 
                 return (
                   <div
                     key={comp.id}
-                    onClick={(e) => { e.stopPropagation(); selectRef.current(comp.id); }}
+                    onClick={(e) => {
+                      if (!isBackground) {
+                        e.stopPropagation();
+                        selectRef.current(comp.id);
+                      }
+                    }}
                     onMouseDown={(e) => {
                       if (isSelected) handleMouseDown(e, comp.id, 'drag');
                     }}
@@ -287,12 +311,12 @@ export default function VisualEditor() {
                       top: comp.boundingBox.y,
                       width: comp.boundingBox.width,
                       height: comp.boundingBox.height,
-                      border: `${isSelected ? 2 : 1}px ${isSelected ? 'solid' : 'dashed'} ${colors.stroke}`,
+                      border: `${isSelected ? 2 : 1}px ${isSelected ? 'solid' : 'dashed'} ${isBackground ? colors.stroke + '40' : colors.stroke}`,
                       backgroundColor: 'transparent',
-                      opacity,
-                      cursor: isSelected ? (interaction?.compId === comp.id ? 'grabbing' : 'grab') : 'pointer',
+                      opacity: isBackground ? 0.3 : opacity,
+                      cursor: isSelected ? (interaction?.compId === comp.id ? 'grabbing' : 'grab') : (isBackground ? 'default' : 'pointer'),
                       boxSizing: 'border-box',
-                      pointerEvents: 'auto',
+                      pointerEvents: isBackground ? 'none' : 'auto',
                       zIndex: isSelected ? 9999 : idx + 1,
                       transition: interaction ? 'none' : 'opacity 0.15s',
                     }}

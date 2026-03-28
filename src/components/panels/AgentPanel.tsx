@@ -48,12 +48,22 @@ function FeedbackSection() {
   if (feedbacks.length === 0) return null;
 
   const handleApply = (feedback: AgentFeedback) => {
-    for (const change of feedback.suggestedChanges) {
-      applyChange(change);
+    if (feedback.suggestedChanges.length > 0) {
+      for (const change of feedback.suggestedChanges) {
+        applyChange(change);
+      }
+      sendMessage('accept_feedback', {
+        feedbackId: feedback.id,
+        changes: feedback.suggestedChanges,
+      });
     }
-    sendMessage('accept_feedback', {
-      feedbackId: feedback.id,
-      changes: feedback.suggestedChanges,
+    removeFeedback(feedback.id);
+  };
+
+  const handleAskFix = (feedback: AgentFeedback) => {
+    // Ask AI to fix the issue via chat
+    sendMessage('chat', {
+      message: `피드백 "${feedback.message}"에 대해 자동으로 수정해줘. 관련 컴포넌트: ${feedback.affectedComponents.join(', ')}`,
     });
     removeFeedback(feedback.id);
   };
@@ -76,43 +86,40 @@ function FeedbackSection() {
               }
             `}
           >
-            <div className="flex items-start gap-2">
-              <span className="flex-shrink-0 mt-0.5">
-                {fb.severity === 'error' ? (
-                  <ErrorIcon />
-                ) : (
-                  <WarningIcon />
-                )}
+            <div className="flex items-center gap-1.5 mb-1">
+              {fb.severity === 'error' ? <ErrorIcon /> : <WarningIcon />}
+              <span className={`
+                px-1.5 py-0.5 rounded text-[10px] font-medium
+                ${fb.severity === 'error'
+                  ? 'bg-red-900/60 text-red-300'
+                  : 'bg-amber-900/60 text-amber-300'
+                }
+              `}>
+                {fb.type}
               </span>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <span className={`
-                    px-1.5 py-0.5 rounded text-[10px] font-medium
-                    ${fb.severity === 'error'
-                      ? 'bg-red-900/60 text-red-300'
-                      : 'bg-amber-900/60 text-amber-300'
-                    }
-                  `}>
-                    {fb.type}
-                  </span>
-                </div>
-                <p className="text-gray-300 leading-relaxed">{fb.message}</p>
-              </div>
             </div>
-            <div className="flex items-center gap-2 mt-2.5 ml-6">
-              {fb.suggestedChanges.length > 0 && (
+            <p className="text-[11px] text-gray-300 leading-relaxed mb-2.5">{fb.message}</p>
+            <div className="flex items-center gap-2">
+              {fb.suggestedChanges.length > 0 ? (
                 <ActionButton
                   variant="primary"
                   onClick={() => handleApply(fb)}
                 >
-                  Apply Fix
+                  바로 적용
+                </ActionButton>
+              ) : (
+                <ActionButton
+                  variant="primary"
+                  onClick={() => handleAskFix(fb)}
+                >
+                  AI 수정 요청
                 </ActionButton>
               )}
               <ActionButton
                 variant="ghost"
                 onClick={() => handleDismiss(fb.id)}
               >
-                Dismiss
+                무시
               </ActionButton>
             </div>
           </div>
@@ -131,6 +138,8 @@ function SuggestionsSection() {
   const removeSuggestion = useAgentStore((s) => s.removeSuggestion);
   const applyChange = useEditorStore((s) => s.applyChange);
   const sendMessage = useAgentStore((s) => s.sendMessage);
+  const selectComponent = useEditorStore((s) => s.selectComponent);
+  const [hoveredSugId, setHoveredSugId] = useState<string | null>(null);
 
   if (suggestions.length === 0) return null;
 
@@ -149,33 +158,63 @@ function SuggestionsSection() {
     removeSuggestion(id);
   };
 
+  const handleHoverEnter = (sug: Suggestion) => {
+    setHoveredSugId(sug.id);
+    // Highlight the first affected component
+    const firstChange = sug.changes[0];
+    if (firstChange) {
+      selectComponent(firstChange.componentId);
+    }
+  };
+
+  const handleHoverLeave = () => {
+    setHoveredSugId(null);
+    selectComponent(null);
+  };
+
   return (
-    <PanelSection title="Suggestions" count={suggestions.length}>
+    <PanelSection title="제안" count={suggestions.length}>
       <div className="space-y-2">
         {suggestions.map((sug) => (
           <div
             key={sug.id}
-            className="p-3 rounded-lg border bg-gray-800/40 border-gray-700/50"
+            className={`p-3 rounded-lg border transition-colors ${
+              hoveredSugId === sug.id
+                ? 'bg-blue-900/30 border-blue-700/60'
+                : 'bg-gray-800/40 border-gray-700/50'
+            }`}
+            onMouseEnter={() => handleHoverEnter(sug)}
+            onMouseLeave={handleHoverLeave}
           >
             <div className="flex items-start justify-between gap-2 mb-1.5">
-              <h4 className="text-xs font-medium text-gray-200">{sug.title}</h4>
+              <div className="flex items-center gap-1.5">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+                <h4 className="text-xs font-medium text-gray-200">{sug.title}</h4>
+              </div>
               <ConfidenceBadge value={sug.confidence} />
             </div>
             <p className="text-[11px] text-gray-400 leading-relaxed mb-2.5">
               {sug.description}
             </p>
+            {sug.changes.length > 0 && (
+              <p className="text-[10px] text-gray-500 mb-2">
+                영향 컴포넌트: {sug.changes.map(c => c.componentId.replace('comp-', '').slice(0, 15)).join(', ')}
+              </p>
+            )}
             <div className="flex items-center gap-2">
               <ActionButton
                 variant="primary"
                 onClick={() => handleApply(sug)}
               >
-                Apply
+                적용
               </ActionButton>
               <ActionButton
                 variant="ghost"
                 onClick={() => handleIgnore(sug.id)}
               >
-                Ignore
+                무시
               </ActionButton>
             </div>
           </div>

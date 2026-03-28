@@ -84,14 +84,15 @@ export default function FloatingToolbar() {
 
         if (result.data.diffs.length === 0) {
           setSaveState('error');
-          setSaveMessage('No code changes generated. Try making bigger edits.');
+          setSaveMessage('코드 변경을 생성하지 못했습니다. 더 큰 변경을 해보세요.');
           setTimeout(() => { setSaveState('idle'); setSaveMessage(''); }, 3000);
           return;
         }
 
         setDiffs(result.data.diffs);
         setSaveState('preview');
-        setSaveMessage(`${result.data.diffs.length} file change(s) ready. Click "Apply" to save.`);
+        const diffFiles = result.data.diffs.map((d: any) => d.file?.split('/').pop()).filter(Boolean).join(', ');
+        setSaveMessage(`${result.data.diffs.length}개 파일 변경 준비됨 (${diffFiles}). "Apply" 클릭하여 적용.`);
         addLog('diff_preview', `Generated ${result.data.diffs.length} diff(s)`);
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error);
@@ -128,7 +129,8 @@ export default function FloatingToolbar() {
 
         const { applied, filesChanged, failed } = result.data;
         setSaveState('done');
-        setSaveMessage(`Saved! ${applied} change(s) applied to ${filesChanged.join(', ')}`);
+        const fileList = filesChanged.map((f: string) => f.split('/').pop()).join(', ');
+        setSaveMessage(`✓ 저장 완료! ${applied}개 수정 적용: ${fileList}`);
         addLog('apply_done', `Applied ${applied} diff(s) across ${filesChanged.length} file(s)`);
 
         if (failed.length > 0) {
@@ -137,6 +139,19 @@ export default function FloatingToolbar() {
 
         clearChanges();
         setDiffs([]);
+
+        // Reload iframe to show updated page, then re-scan
+        setTimeout(() => {
+          const iframes = document.querySelectorAll('iframe');
+          for (const iframe of Array.from(iframes)) {
+            try { iframe.contentWindow?.location.reload(); } catch { /* cross-origin */ }
+          }
+        }, 1000);
+        // Re-scan after iframe reloads
+        setTimeout(() => {
+          sendMessage('scan', { url: targetUrl, projectPath: effectivePath });
+        }, 3000);
+
         setTimeout(() => { setSaveState('idle'); setSaveMessage(''); }, 5000);
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error);

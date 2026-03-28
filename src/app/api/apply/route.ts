@@ -7,6 +7,14 @@ function applyDiff(content: string, diff: CodeDiff): { ok: true; content: string
   const original = diff.original ?? '';
   const modified = diff.modified ?? '';
 
+  // Safety: reject diffs that look like they're modifying unrelated code
+  if (modified.includes('marginRight=') || modified.includes('marginLeft=') ||
+      modified.includes('marginTop=') || modified.includes('marginBottom=')) {
+    if (!original.includes('margin')) {
+      return { ok: false, reason: `Rejected: diff adds inline margin prop to unrelated code in "${diff.file}"` };
+    }
+  }
+
   if (original.length > 0) {
     const foundIndex = content.indexOf(original);
     if (foundIndex !== -1) {
