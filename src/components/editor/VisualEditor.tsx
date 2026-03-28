@@ -198,13 +198,38 @@ export default function VisualEditor() {
     };
 
     const handleMouseMove = (e: MouseEvent) => {
-      // Visual update only — don't add to changes array (too noisy)
       const newBox = calcNewBox(e);
       const store = useEditorStore.getState();
       const updated = store.components.map((c) =>
         c.id === interaction.compId ? { ...c, boundingBox: newBox } : c
       );
       useEditorStore.setState({ components: updated });
+
+      // Live preview: send style update to iframe
+      const comp = store.components.find(c => c.id === interaction.compId);
+      if (comp?.fullClassName && iframeRef.current?.contentWindow) {
+        const styles: Record<string, string> = {};
+        if (interaction.mode !== 'drag') {
+          // Resize: update width/height
+          if (newBox.width !== interaction.startBox.width) styles.width = `${newBox.width}px`;
+          if (newBox.height !== interaction.startBox.height) styles.height = `${newBox.height}px`;
+        } else {
+          // Move: update margin
+          const dy = newBox.y - interaction.startBox.y;
+          const dx = newBox.x - interaction.startBox.x;
+          if (Math.abs(dy) > 2) styles.marginTop = `${Math.max(0, dy)}px`;
+          if (Math.abs(dx) > 2) styles.marginLeft = `${Math.max(0, dx)}px`;
+        }
+        if (Object.keys(styles).length > 0) {
+          // Use first 20 chars of className as unique identifier
+          const classKey = comp.fullClassName.split(' ').slice(0, 3).join(' ');
+          iframeRef.current.contentWindow.postMessage({
+            type: 'wigss-live-style',
+            className: classKey,
+            styles,
+          }, '*');
+        }
+      }
     };
 
     const handleMouseUp = (e: MouseEvent) => {

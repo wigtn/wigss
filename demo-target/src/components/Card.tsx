@@ -22,7 +22,7 @@ export default function Card({
   return (
     <article
       data-component="card"
-      className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden hover:border-gray-700 transition-colors group w-[300px]"
+      className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden hover:border-gray-700 transition-colors group w-[300px] ml-[32px]"
       style={{ marginRight }}
     >
       {imageUrl ? (
@@ -53,7 +53,7 @@ export default function Card({
         </div>
       )}
 
-      <div className="p-5">
+      <div className="p-5 h-96">
         <span className="inline-block px-3 py-1 text-xs font-medium rounded-full bg-violet-500/10 text-violet-400 mb-3">
           {tag}
         </span>

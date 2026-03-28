@@ -107,6 +107,33 @@ export default function RootLayout({
                   }
                 });
 
+                // Live style preview: apply inline styles during drag
+                window.addEventListener('message', function(e) {
+                  if (e.data && e.data.type === 'wigss-live-style') {
+                    var className = e.data.className;
+                    var styles = e.data.styles;
+                    if (!className || !styles) return;
+                    // Find element by matching className substring
+                    var allElements = document.querySelectorAll('*');
+                    for (var i = 0; i < allElements.length; i++) {
+                      var el = allElements[i];
+                      if (el.className && typeof el.className === 'string' && el.className.includes(className)) {
+                        for (var prop in styles) {
+                          el.style[prop] = styles[prop];
+                        }
+                        break;
+                      }
+                    }
+                  }
+                  // Reset all inline styles (on re-scan or save)
+                  if (e.data && e.data.type === 'wigss-reset-styles') {
+                    var allEls = document.querySelectorAll('*');
+                    for (var j = 0; j < allEls.length; j++) {
+                      allEls[j].removeAttribute('style');
+                    }
+                  }
+                });
+
                 // No auto-scan — only respond to explicit wigss-scan-request
 
                 window.addEventListener('load', reportHeight);

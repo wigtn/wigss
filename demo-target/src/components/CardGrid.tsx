@@ -10,7 +10,7 @@ export default function CardGrid() {
   return (
     <section data-component="grid" className="flex-1">
       <div className="mb-8">
-        <h2 className="text-2xl font-bold mb-2">Latest Projects</h2>
+        <h2 className="text-2xl font-bold mb-2 h-20">Latest Projects</h2>
         <p className="text-gray-400">Our most recent design work and case studies</p>
       </div>
 

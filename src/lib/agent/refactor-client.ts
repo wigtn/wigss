@@ -56,6 +56,7 @@ function directRefactor(
   // Calculate what to change
   let oldClass = '';
   let newClass = '';
+  let addedClass = ''; // Class to ADD when no existing class matches
   const explanation: string[] = [];
 
   if (change.type === 'resize') {
@@ -63,42 +64,45 @@ function directRefactor(
     const dh = (change.to.height ?? 0) - (change.from.height ?? 0);
 
     if (Math.abs(dh) > 2) {
-      // Height change: look for h-XX or py-XX
       const hClass = findTwClass(fullClassName, 'h');
       if (hClass) {
-        const newH = pxToTw(change.to.height!, 'h');
         oldClass = hClass;
-        newClass = newH;
-        explanation.push(`높이: ${hClass} → ${newH} (${change.from.height}px → ${change.to.height}px)`);
+        newClass = pxToTw(change.to.height!, 'h');
+        explanation.push(`높이: ${hClass} → ${newClass}`);
       } else {
         const pyClass = findTwClass(fullClassName, 'py');
         if (pyClass) {
           const currentPy = parseInt(pyClass.replace(/\D/g, '') || '0');
           const newPy = Math.max(0, currentPy + Math.round(dh / 2));
-          const newPyClass = pxToTw(newPy, 'py');
           oldClass = pyClass;
-          newClass = newPyClass;
-          explanation.push(`패딩: ${pyClass} → ${newPyClass}`);
+          newClass = pxToTw(newPy, 'py');
+          explanation.push(`패딩: ${oldClass} → ${newClass}`);
+        } else {
+          // No h-XX or py-XX → ADD h-[Npx] to className
+          addedClass = pxToTw(change.to.height!, 'h');
+          explanation.push(`높이 추가: ${addedClass}`);
         }
       }
     }
 
-    if (Math.abs(dw) > 2 && !oldClass) {
+    if (Math.abs(dw) > 2 && !oldClass && !addedClass) {
       const wClass = findTwClass(fullClassName, 'w');
       if (wClass) {
-        const newW = pxToTw(change.to.width!, 'w');
         oldClass = wClass;
-        newClass = newW;
-        explanation.push(`너비: ${wClass} → ${newW} (${change.from.width}px → ${change.to.width}px)`);
+        newClass = pxToTw(change.to.width!, 'w');
+        explanation.push(`너비: ${oldClass} → ${newClass}`);
       } else {
         const pxClass = findTwClass(fullClassName, 'px');
         if (pxClass) {
           const currentPx = parseInt(pxClass.replace(/\D/g, '') || '0');
           const newPx = Math.max(0, currentPx + Math.round(dw / 2));
-          const newPxClass = pxToTw(newPx, 'px');
           oldClass = pxClass;
-          newClass = newPxClass;
-          explanation.push(`패딩: ${pxClass} → ${newPxClass}`);
+          newClass = pxToTw(newPx, 'px');
+          explanation.push(`패딩: ${oldClass} → ${newClass}`);
+        } else {
+          // No w-XX or px-XX → ADD w-[Npx]
+          addedClass = pxToTw(change.to.width!, 'w');
+          explanation.push(`너비 추가: ${addedClass}`);
         }
       }
     }
@@ -111,40 +115,71 @@ function directRefactor(
     if (Math.abs(dy) > 2) {
       const mtClass = findTwClass(fullClassName, 'mt');
       if (mtClass) {
-        const currentMt = parseInt(mtClass.replace(/\D/g, '') || '0');
-        const newMt = Math.max(0, currentMt + Math.round(dy / 4)); // Approximate
-        const newMtClass = pxToTw(newMt * 4, 'mt'); // Convert back to px then to tw
+        const currentPx = parseInt(mtClass.replace(/[^\d]/g, '') || '0');
+        // Convert TW value to px, add delta, convert back
+        const twVal = TW_MAP[currentPx * 4] ? currentPx * 4 : currentPx;
+        const newPx = Math.max(0, twVal + dy);
         oldClass = mtClass;
-        newClass = newMtClass;
-        explanation.push(`마진: ${mtClass} → ${newMtClass}`);
+        newClass = pxToTw(newPx, 'mt');
+        explanation.push(`마진: ${oldClass} → ${newClass}`);
       } else {
         const mbClass = findTwClass(fullClassName, 'mb');
         if (mbClass) {
-          const currentMb = parseInt(mbClass.replace(/\D/g, '') || '0');
-          const newMb = Math.max(0, currentMb - Math.round(dy / 4));
-          const newMbClass = pxToTw(newMb * 4, 'mb');
+          const currentPx = parseInt(mbClass.replace(/[^\d]/g, '') || '0');
+          const twVal = TW_MAP[currentPx * 4] ? currentPx * 4 : currentPx;
+          const newPx = Math.max(0, twVal - dy);
           oldClass = mbClass;
-          newClass = newMbClass;
-          explanation.push(`마진: ${mbClass} → ${newMbClass}`);
+          newClass = pxToTw(newPx, 'mb');
+          explanation.push(`마진: ${oldClass} → ${newClass}`);
+        } else {
+          // No mt-XX → ADD mt-[Npx]
+          if (dy > 0) {
+            addedClass = `mt-[${Math.round(dy)}px]`;
+            explanation.push(`마진 추가: ${addedClass}`);
+          }
         }
       }
     }
 
-    if (Math.abs(dx) > 2 && !oldClass) {
+    if (Math.abs(dx) > 2 && !oldClass && !addedClass) {
       const mlClass = findTwClass(fullClassName, 'ml');
       if (mlClass) {
-        const currentMl = parseInt(mlClass.replace(/\D/g, '') || '0');
-        const newMl = Math.max(0, currentMl + Math.round(dx / 4));
-        const newMlClass = pxToTw(newMl * 4, 'ml');
+        const currentPx = parseInt(mlClass.replace(/[^\d]/g, '') || '0');
+        const twVal = TW_MAP[currentPx * 4] ? currentPx * 4 : currentPx;
+        const newPx = Math.max(0, twVal + dx);
         oldClass = mlClass;
-        newClass = newMlClass;
-        explanation.push(`마진: ${mlClass} → ${newMlClass}`);
+        newClass = pxToTw(newPx, 'ml');
+        explanation.push(`마진: ${oldClass} → ${newClass}`);
+      } else if (dx > 0) {
+        addedClass = `ml-[${Math.round(dx)}px]`;
+        explanation.push(`마진 추가: ${addedClass}`);
       }
     }
   }
 
+  // Handle case: ADD a new class (no existing class to swap)
+  if (addedClass && !oldClass) {
+    const modifiedClassName = `${fullClassName} ${addedClass}`;
+    const originalLine = `className="${fullClassName}"`;
+    const modifiedLine = `className="${modifiedClassName}"`;
+
+    if (!targetSource.content.includes(originalLine)) {
+      console.log(`[DirectRefactor] Cannot find className to add ${addedClass} in ${targetSource.path}`);
+      return null;
+    }
+
+    console.log(`[DirectRefactor] ✓ ADD ${addedClass} to ${targetSource.path}`);
+    return {
+      file: targetSource.path,
+      original: originalLine,
+      modified: modifiedLine,
+      lineNumber: 0,
+      explanation: explanation.join(', '),
+    };
+  }
+
   if (!oldClass || !newClass || oldClass === newClass) {
-    console.log(`[DirectRefactor] No class change computed for ${component.name}`);
+    console.log(`[DirectRefactor] No class change for ${component.name} (old="${oldClass}" new="${newClass}" added="${addedClass}")`);
     return null;
   }
 
