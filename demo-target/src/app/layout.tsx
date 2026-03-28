@@ -96,20 +96,7 @@ export default function RootLayout({
                   }
                 });
 
-                // Also auto-send on load (no need to wait for request)
-                function autoScan() {
-                  if (window.parent === window) return; // not in iframe
-                  console.log('[demo-target] Auto-scanning elements...');
-                  var elements = scanElements();
-                  console.log('[demo-target] Auto-sending', elements.length, 'elements');
-                  window.parent.postMessage({
-                    type: 'wigss-scan-result',
-                    elements: elements,
-                    viewport: { width: window.innerWidth, height: document.documentElement.scrollHeight }
-                  }, '*');
-                }
-                setTimeout(autoScan, 2000);
-                setTimeout(autoScan, 5000);
+                // No auto-scan — only respond to explicit wigss-scan-request
 
                 window.addEventListener('load', reportHeight);
                 window.addEventListener('resize', function() {
