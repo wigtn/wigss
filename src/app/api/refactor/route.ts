@@ -27,6 +27,16 @@ export async function POST(req: NextRequest) {
 
     console.log('[Refactor API] changes:', changes.length, 'components:', components.length, 'projectPath:', projectPath);
 
+    // Log each change with its component info for debugging
+    for (const change of changes) {
+      const comp = components.find(c => c.id === change.componentId);
+      console.log(`[Refactor API] Change: ${change.type} ${change.componentId}`);
+      console.log(`  component: ${comp?.name || 'NOT FOUND'}`);
+      console.log(`  fullClassName: "${(comp as any)?.fullClassName || 'EMPTY'}"`);
+      console.log(`  sourceFile: "${comp?.sourceFile || 'EMPTY'}"`);
+      console.log(`  from:`, change.from, '→ to:', change.to);
+    }
+
     // Resolve 'auto' to the server's SOURCE_PATH (set by CLI)
     if (!projectPath || projectPath === 'auto') {
       projectPath = process.env.SOURCE_PATH || process.cwd();
