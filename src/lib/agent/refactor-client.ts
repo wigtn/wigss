@@ -17,12 +17,25 @@ function pxToTw(px: number, prefix: string): string {
   return `${prefix}-[${Math.round(px)}px]`;
 }
 
+// ── Reverse TW_MAP: e.g. '4' → 16 (the px value whose TW token is '4') ──
+const TW_REVERSE = new Map(Object.entries(TW_MAP).map(([px, tw]) => [tw, Number(px)]));
+
+// ── Parse a Tailwind class like "mt-4" or "mt-[32px]" into its px value ──
+function parseTwPx(twClass: string, prefix: string): number {
+  const bracketMatch = twClass.match(/\[(\d+)px\]/);
+  if (bracketMatch) return parseInt(bracketMatch[1]);
+  const twNum = twClass.replace(new RegExp(`^-?${prefix}-`), '');
+  return TW_REVERSE.get(twNum) ?? parseInt(twNum) * 4;
+}
+
 // ── Find a Tailwind class pattern in className string ──
 function findTwClass(className: string, prefix: string): string | null {
   // Match: prefix-NUMBER, prefix-[NUMBERpx], prefix-NUMBER.5
-  const regex = new RegExp(`\\b${prefix}-(?:\\[\\d+px\\]|\\d+\\.?\\d*)\\b`);
+  // Also handles negative prefix like -translate-y
+  const escaped = prefix.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+  const regex = new RegExp(`(?:^|\\s)-?${escaped}-(?:\\[\\d+px\\]|\\d+\\.?\\d*)(?=\\s|$)`);
   const match = className.match(regex);
-  return match ? match[0] : null;
+  return match ? match[0].trim() : null;
 }
 
 // ── Direct refactoring: no GPT, just string replacement ──
@@ -115,44 +128,48 @@ function directRefactor(
     if (Math.abs(dy) > 2) {
       const mtClass = findTwClass(fullClassName, 'mt');
       if (mtClass) {
-        const currentPx = parseInt(mtClass.replace(/[^\d]/g, '') || '0');
-        // Convert TW value to px, add delta, convert back
-        const twVal = TW_MAP[currentPx * 4] ? currentPx * 4 : currentPx;
-        const newPx = Math.max(0, twVal + dy);
+        const currentPx = parseTwPx(mtClass, 'mt');
+        const newPx = Math.max(0, currentPx + Math.round(dy));
         oldClass = mtClass;
         newClass = pxToTw(newPx, 'mt');
         explanation.push(`마진: ${oldClass} → ${newClass}`);
       } else {
         const mbClass = findTwClass(fullClassName, 'mb');
         if (mbClass) {
-          const currentPx = parseInt(mbClass.replace(/[^\d]/g, '') || '0');
-          const twVal = TW_MAP[currentPx * 4] ? currentPx * 4 : currentPx;
-          const newPx = Math.max(0, twVal - dy);
+          const currentPx = parseTwPx(mbClass, 'mb');
+          const newPx = Math.max(0, currentPx - Math.round(dy));
           oldClass = mbClass;
           newClass = pxToTw(newPx, 'mb');
           explanation.push(`마진: ${oldClass} → ${newClass}`);
         } else {
-          // No mt-XX → ADD mt-[Npx]
+          // No mt-XX or mb-XX → ADD mt-[Npx] for downward, or negative not supported
           if (dy > 0) {
             addedClass = `mt-[${Math.round(dy)}px]`;
             explanation.push(`마진 추가: ${addedClass}`);
+          } else {
+            // Upward move: use negative translate or -mt isn't valid, use -translate-y
+            addedClass = `-translate-y-[${Math.abs(Math.round(dy))}px]`;
+            explanation.push(`이동: ${addedClass}`);
           }
         }
       }
     }
 
-    if (Math.abs(dx) > 2 && !oldClass && !addedClass) {
+    if (Math.abs(dx) > 2 && !oldClass) {
       const mlClass = findTwClass(fullClassName, 'ml');
       if (mlClass) {
-        const currentPx = parseInt(mlClass.replace(/[^\d]/g, '') || '0');
-        const twVal = TW_MAP[currentPx * 4] ? currentPx * 4 : currentPx;
-        const newPx = Math.max(0, twVal + dx);
+        const currentPx = parseTwPx(mlClass, 'ml');
+        const newPx = Math.max(0, currentPx + Math.round(dx));
         oldClass = mlClass;
         newClass = pxToTw(newPx, 'ml');
         explanation.push(`마진: ${oldClass} → ${newClass}`);
-      } else if (dx > 0) {
-        addedClass = `ml-[${Math.round(dx)}px]`;
-        explanation.push(`마진 추가: ${addedClass}`);
+      } else {
+        const hClass = dx > 0
+          ? `ml-[${Math.round(dx)}px]`
+          : `-translate-x-[${Math.abs(Math.round(dx))}px]`;
+        // Append to existing addedClass if vertical was already added
+        addedClass = addedClass ? `${addedClass} ${hClass}` : hClass;
+        explanation.push(dx > 0 ? `마진 추가: ${hClass}` : `이동: ${hClass}`);
       }
     }
   }

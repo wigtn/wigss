@@ -274,9 +274,9 @@ export default function VisualEditor() {
     return areaB - areaA;
   });
 
-  // Background threshold: only elements covering >30% of viewport area are "background"
+  // Background threshold: elements covering >60% of viewport get subtle styling but remain clickable
   const viewportArea = DESKTOP_WIDTH * Math.max(canvasHeight, 800);
-  const areaThreshold = viewportArea * 0.3;
+  const areaThreshold = viewportArea * 0.6;
 
   const fixedWidth = viewportMode === 'mobile' ? MOBILE_WIDTH : DESKTOP_WIDTH;
 
@@ -341,12 +341,14 @@ export default function VisualEditor() {
                   <div
                     key={comp.id}
                     onClick={(e) => {
-                      if (!isBackground) {
+                      e.stopPropagation();
+                      selectRef.current(comp.id);
+                    }}
+                    onMouseDown={(e) => {
+                      if (isBackground && !isSelected) {
                         e.stopPropagation();
                         selectRef.current(comp.id);
                       }
-                    }}
-                    onMouseDown={(e) => {
                       if (isSelected) handleMouseDown(e, comp.id, 'drag');
                     }}
                     className="wigss-overlay-box"
@@ -366,9 +368,9 @@ export default function VisualEditor() {
                       backgroundColor: isHovered ? 'rgba(250, 204, 21, 0.08)' : 'transparent',
                       boxShadow: isHovered ? '0 0 16px rgba(250, 204, 21, 0.5), 0 0 32px rgba(250, 204, 21, 0.2)' : 'none',
                       opacity: isBackground ? 0.3 : isHovered ? 1 : opacity,
-                      cursor: isSelected ? (interaction?.compId === comp.id ? 'grabbing' : 'grab') : (isBackground ? 'default' : 'pointer'),
+                      cursor: isSelected ? (interaction?.compId === comp.id ? 'grabbing' : 'grab') : 'pointer',
                       boxSizing: 'border-box',
-                      pointerEvents: isBackground ? 'none' : 'auto',
+                      pointerEvents: 'auto',
                       zIndex: isSelected ? 9999 : idx + 1,
                       transition: interaction ? 'none' : 'all 0.15s ease',
                     }}
