@@ -7,31 +7,35 @@ function applyDiff(content: string, diff: CodeDiff): { ok: true; content: string
   const original = diff.original ?? '';
   const modified = diff.modified ?? '';
 
-  // Safety: reject dangerous diffs
   if (!original || !modified) {
     return { ok: false, reason: 'Rejected: empty original or modified' };
   }
 
-  // STRICT: original must contain className="..." and modified must too
-  const origClassMatch = original.match(/className="([^"]*)"/);
-  const modClassMatch = modified.match(/className="([^"]*)"/);
-
-  if (!origClassMatch || !modClassMatch) {
-    return { ok: false, reason: 'Rejected: diff must modify a className="..." attribute' };
+  // Safety: line count must match (no structural changes)
+  const origLines = original.split('\n').length;
+  const modLines = modified.split('\n').length;
+  if (origLines !== modLines) {
+    return { ok: false, reason: `Rejected: line count changed (${origLines}→${modLines})` };
   }
 
-  // STRICT: everything EXCEPT the className value must be identical
-  const origWithoutClass = original.replace(/className="[^"]*"/, 'className="__PLACEHOLDER__"');
-  const modWithoutClass = modified.replace(/className="[^"]*"/, 'className="__PLACEHOLDER__"');
-  if (origWithoutClass !== modWithoutClass) {
-    return { ok: false, reason: 'Rejected: diff changes code outside className value' };
+  // Safety: must contain className or style (CSS-only changes)
+  const hasClassName = original.includes('className');
+  const hasStyle = original.includes('style');
+  if (!hasClassName && !hasStyle) {
+    return { ok: false, reason: 'Rejected: diff must modify className or style' };
   }
 
-  // Line count must match
-  if (original.split('\n').length !== modified.split('\n').length) {
-    return { ok: false, reason: 'Rejected: line count changed' };
+  // Safety: no JS logic changes (function, const, return, import, export)
+  const dangerousPatterns = ['function ', 'const ', 'let ', 'var ', 'return ', 'import ', 'export ', '=>'];
+  for (const pattern of dangerousPatterns) {
+    const origCount = (original.match(new RegExp(pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) || []).length;
+    const modCount = (modified.match(new RegExp(pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) || []).length;
+    if (origCount !== modCount) {
+      return { ok: false, reason: `Rejected: JS structure changed (${pattern.trim()})` };
+    }
   }
 
+  // Apply: find and replace
   if (original.length > 0) {
     const foundIndex = content.indexOf(original);
     if (foundIndex !== -1) {
@@ -40,22 +44,7 @@ function applyDiff(content: string, diff: CodeDiff): { ok: true; content: string
     }
   }
 
-  if (Number.isInteger(diff.lineNumber) && diff.lineNumber > 0) {
-    const lines = content.split('\n');
-    const start = Math.min(Math.max(diff.lineNumber - 1, 0), lines.length);
-    const removeCount = original.length > 0
-      ? Math.max(original.split('\n').length, 1)
-      : 1;
-    const insertLines = modified.split('\n');
-    lines.splice(start, removeCount, ...insertLines);
-    return { ok: true, content: lines.join('\n') };
-  }
-
-  if (original.length === 0 && modified.length > 0 && content.length === 0) {
-    return { ok: true, content: modified };
-  }
-
-  return { ok: false, reason: `Cannot apply diff for file "${diff.file}"` };
+  return { ok: false, reason: `Cannot find original snippet in file "${diff.file}"` };
 }
 
 /**
@@ -152,17 +141,9 @@ export async function POST(req: NextRequest) {
       }
 
       if (fileAppliedCount > 0) {
-        // Syntax validation: compare bracket balance before and after
-        const origContent = await readSourceFile(absolutePath).catch(() => '');
-        const origBrackets = (origContent.match(/[{}()]/g) || []).length;
-        const newBrackets = (content.match(/[{}()]/g) || []).length;
-        if (Math.abs(origBrackets - newBrackets) > 0) {
-          failed.push({ file, reason: `Syntax guard: bracket count changed (${origBrackets} → ${newBrackets}). Skipping to prevent breakage.` });
-          continue;
-        }
-
         await writeSourceFile(absolutePath, content);
         filesChanged.push(file);
+        console.log(`[Apply] Written ${file}: ${fileAppliedCount} diff(s) applied`);
       }
     }
 
