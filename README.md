@@ -8,10 +8,9 @@
 
 [![Next.js](https://img.shields.io/badge/Next.js-14-black?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
-[![OpenAI](https://img.shields.io/badge/OpenAI-GPT--4o_+_GPT--5.4-412991?style=for-the-badge&logo=openai&logoColor=white)](https://platform.openai.com/)
+[![OpenAI](https://img.shields.io/badge/OpenAI-GPT--4o_+_5.4-412991?style=for-the-badge&logo=openai&logoColor=white)](https://platform.openai.com/)
 [![Playwright](https://img.shields.io/badge/Playwright-Locator-2EAD33?style=for-the-badge&logo=playwright&logoColor=white)](https://playwright.dev/)
-[![Zustand](https://img.shields.io/badge/Zustand-State-433E38?style=for-the-badge&logo=react&logoColor=white)](https://zustand-demo.pmnd.rs/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
 
 [Korean (한국어)](README.ko.md) | **English**
 
@@ -19,46 +18,64 @@
 
 ---
 
+## What is WIGSS?
+
+WIGSS is a **visual code refactoring tool** powered by an always-on AI agent. Frontend developers can **visually drag and resize UI components** on their live web page, and WIGSS **automatically rewrites the source code** to match.
+
+No Figma-to-code. No CSS guessing. Just drag it — the code changes.
+
 ## The Problem
 
-In the age of AI, frontend developers increasingly build UIs without dedicated designers or publishers. You can throw together a layout in code, but **polishing it visually** is still painful:
+AI coding agents (Cursor, Claude Code, Trae) can scaffold UI fast. But **fine-tuning the design** is still painful:
 
-- Edit CSS &rarr; refresh &rarr; check &rarr; edit again &rarr; repeat forever
-- Adjusting spacing, sizing, and alignment across components in code is tedious
-- There's no way to just *grab* a component and move it, then have your code update
+- "Make this card a bit wider" — hard to describe precisely in words
+- CSS tweaking → refresh → check → repeat — slow and tedious
+- No designer available — developers do it alone
 
 ## The Solution
 
-WIGSS lets you **visually rearrange your live web page**, then **automatically rewrites your source code** to match.
+```bash
+npx wigss --port 3000
+# That's it. One command.
+```
 
-No new code generated from scratch. Your existing codebase is refactored.
+WIGSS opens your live dev page with an **editing overlay**. Click a component, drag to resize, save — the AI rewrites your Tailwind classes automatically.
 
 ---
 
-## How It Works
+## Quick Start
 
+### 1. Run
+
+```bash
+cd my-project
+npm run dev                        # Your dev server on port 3000
+
+# In another terminal:
+npx wigss --port 3000              # WIGSS asks for OpenAI API key, then opens browser
 ```
-  Code it rough          AI detects            Drag & drop           Code updates
- ┌─────────────┐     ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
- │  Developer   │────>│  Component   │────>│  Visual      │────>│  Source Code  │
- │  writes code │     │  Auto-detect │     │  Editor      │     │  Refactored   │
- └─────────────┘     └──────────────┘     └──────────────┘     └──────────────┘
-                        AI Agent #1                               AI Agent #4
-                                            You drag stuff.
-                                            Like a web builder.
+
+Or with key inline:
+```bash
+npx wigss --port 3000 --key sk-proj-...
 ```
 
-## 5 Autonomous AI Agent Actions
+Or try the demo (no existing project needed):
+```bash
+npx wigss --demo
+```
 
-| # | Agent Action | What It Does | AI Model |
-|---|-------------|-------------|----------|
-| **1** | **Component Auto-Detection** | Analyzes DOM, autonomously identifies Navbar, Card Grid, Sidebar etc. | GPT-4o |
-| **2** | **Real-time Edit Feedback** | After each drag/resize: "8px misaligned", "card too small" — instant review | GPT-4o |
-| **3** | **Chat Consultation** | "How should I fix the footer?" — analysis + suggestions. "Do it for me" — auto-modify with confirmation | GPT-4o |
-| **4** | **Source Code Refactoring** | Maps visual changes to actual source files, generates precise diffs | GPT-5.4 |
-| **5** | **Self-Verification Loop** | Re-renders after refactoring, auto-fixes mismatches (up to 3 retries) | GPT-5.4 |
+### 2. Edit
 
-> The agent doesn't just respond to commands. It **observes, suggests, acts, and verifies on its own.**
+1. Click **Scan** — AI detects all UI components
+2. **Click** any component to select it
+3. **Drag** to move, **handle** to resize
+4. AI gives **real-time feedback** ("8px misaligned", "too small")
+5. **Chat** with AI — "how should I fix the footer?"
+
+### 3. Save
+
+Click **Save** — AI generates Tailwind diffs → applies to source → iframe reloads → done.
 
 ---
 
@@ -66,121 +83,93 @@ No new code generated from scratch. Your existing codebase is refactored.
 
 ```
 Browser (localhost:4000)
-├── Floating Toolbar
-├── Visual Editor (iframe + fabric.js Canvas)
-│   └── Object-based drag/resize (actual page doesn't move)
+├── Floating Toolbar [Scan] [Save] [Mobile] [Undo/Redo]
+├── Visual Editor
+│   ├── iframe (your live page — read-only background)
+│   └── Overlay (draggable/resizable component boxes)
 ├── Agent Panel
-│   ├── Real-time Feedback [Apply] [Dismiss]
-│   ├── Chat (ask / delegate / instruct)
-│   └── Agent Log
+│   ├── Real-time Feedback ("카드 높이 60px 차이" → [바로 적용])
+│   ├── AI Suggestions ("간격 불균일 90%" → [적용] [무시])
+│   └── Chat ("푸터 어떻게 해?" → AI 분석 + 수정 계획)
 │
-│   WebSocket (always connected)
+│   WebSocket (always connected, event-driven)
 │   ▼
-WIGSS Agent (Node.js, event-driven)
-├── OpenAI GPT-4o — observe, detect, suggest, feedback, chat, responsive
-├── OpenAI GPT-5.4 — code refactoring, self-verification
-├── Playwright — DOM scan, verification re-render
-├── chokidar — file change detection
-└── fs — source code read/write
+WIGSS Agent (Node.js)
+├── OpenAI GPT-4o — detection, suggestions, feedback, chat
+├── OpenAI GPT-5.4 — Tailwind code refactoring
+├── Playwright — DOM scanning (headless Chromium)
+└── fs — source file read/write (with .bak backup)
 ```
 
-## Tech Stack
+## AI Agent: 5 Autonomous Actions
 
-| Layer | Technology | Role |
-|-------|-----------|------|
-| **Framework** | Next.js 14 (App Router) | Full-stack, API Routes |
-| **Language** | TypeScript | Type safety |
-| **Styling** | Tailwind CSS | Rapid UI development |
-| **Visual Editor** | iframe + fabric.js Canvas | Live page with draggable components |
-| **Drag/Resize** | fabric.js | Object-based component manipulation |
-| **State** | Zustand | Component state + change tracking |
-| **AI** | OpenAI GPT-4o + GPT-5.4 | Component detection + refactoring |
-| **DOM Scan** | Playwright | Browser automation |
-| **File I/O** | Node.js fs | Source code read/write |
+| # | Action | Model | Trigger |
+|---|--------|-------|---------|
+| 1 | **Component Detection** | GPT-4o | After Scan — "이건 Navbar, 이건 Card Grid" |
+| 2 | **Design Suggestions** | GPT-4o | After detection — "카드 간격 16px/24px 불균일 (90%)" |
+| 3 | **Real-time Feedback** | GPT-4o | After drag/resize — "60px 차이, 맞출까요?" |
+| 4 | **Chat Consultation** | GPT-4o | User asks — "푸터 어떻게?" / "알아서 해줘" |
+| 5 | **Code Refactoring** | GPT-5.4 | On Save — `h-16→h-12`, `mt-2→mt-0` in source files |
 
-## Communication
-
-| Channel | Purpose |
-|---------|---------|
-| `WebSocket /ws` | Always-on agent connection (scan, detect, suggest, feedback, chat, responsive, refactor, verify) |
-| `POST /api/apply` | Apply diffs to source files (REST for safety — requires explicit user confirmation) |
-
----
-
-## Getting Started
-
-### Prerequisites
-
-- Node.js 18+
-- pnpm
-- A running dev server to scan (e.g., `localhost:3000`)
-
-### Installation
-
-```bash
-git clone https://github.com/your-username/wigss.git
-cd wigss
-pnpm install
-```
-
-### Environment
-
-```bash
-cp .env.example .env.local
-# Add your OpenAI API key
-# OPENAI_API_KEY=sk-...
-```
-
-### Run
-
-**Development mode:**
-```bash
-pnpm dev
-```
-Opens WIGSS editor on `localhost:3000` with demo-target on `localhost:3001`.
-
-**Production usage (after npm publish):**
-```bash
-cd your-project
-npx wigss --port 3000
-```
-
----
-
-## Demo Flow (3 minutes)
-
-```
-0:00  Problem intro
-0:15  Scan → AI auto-detects components               ← Agent #1
-0:40  AI suggests "card spacing is uneven" → Apply     ← Agent #2
-1:00  Drag components + Mobile View auto-conversion    ← Agent #3
-1:30  Save → AI generates source code diffs            ← Agent #4
-2:15  Self-verification → auto-fix mismatch            ← Agent #5
-2:40  "5 autonomous actions. You just drag."
-```
-
----
-
-## Why "Agent", Not "Tool"
+### Why "Agent" Not "Tool"
 
 | | Typical AI Tool | WIGSS Agent |
-|--|----------------|--------------|
-| **Initiative** | Waits for commands | Proactively suggests improvements |
-| **Scope** | Single action per request | Multi-step autonomous pipeline |
-| **Error handling** | User reports issues | Self-verifies and auto-corrects |
-| **Result** | Generated text/code | Actual source files modified |
-| **Communication** | Request-response | Always-on WebSocket, event-driven |
+|--|----------------|-------------|
+| Initiative | Waits for commands | Proactively suggests improvements |
+| Scope | Single action per request | Multi-step autonomous pipeline |
+| Communication | Request → Response | Always-on WebSocket |
+| Result | Generated text | Source files actually modified |
 
 ---
 
-## Project Structure
+## Features
 
+### Visual Editing
+- Click to select → drag to move → handle to resize
+- Background layers auto-detected → click passes through to smaller components
+- Undo/Redo support
+- 1280px fixed viewport (matches scan coordinates precisely)
+
+### AI Agent (Always-On WebSocket)
+- Event-driven (no polling — zero cost while idle)
+- Component detection with `data-component` attribute → source file mapping
+- Suggestions with confidence scores + hover highlight
+- Korean language responses with specific px values
+
+### Source Code Refactoring
+- One-click Save (generate + apply in single step)
+- Tailwind-aware — changes CSS classes, never JS logic
+- Safe: rejects diffs that modify unrelated code (SVG, event handlers)
+- Auto backup (`.bak` files) before modification
+- Auto iframe reload + re-scan after save
+
+### Chat
+- Ask advice, delegate tasks, give instructions
+- "알아서 해줘" → AI proposes plan → confirm → auto-modify overlays
+
+---
+
+## CLI
+
+```bash
+npx wigss [options]
+
+  -p, --port <port>       Target dev server port (default: 3000)
+  --wigss-port <port>     WIGSS editor port (default: 4000)
+  --key <key>             OpenAI API key
+  --demo                  Run with built-in demo page
+  -V, --version           Show version
 ```
-docs/
-├── prd/PRD_wigss.md           # Product Requirements (v5.2)
-├── todo_plan/PLAN_wigss.md    # Execution Plan (D-1 / D-Day)
-└── ARCHITECTURE.md            # System Architecture (v2.2)
-```
+
+If no `--key` is provided and `OPENAI_API_KEY` env var is not set, WIGSS will **prompt interactively**.
+
+---
+
+## Requirements
+
+- Node.js 18+
+- OpenAI API key (Tier 3+ recommended for GPT-5.4)
+- A running dev server (React/Next.js + Tailwind recommended)
 
 ## License
 
@@ -190,7 +179,7 @@ MIT
 
 <div align="center">
 
-**Built for the Trae.ai Hackathon 2026 by Team WIGSS (WIGTN Crew)**
+**Built by Team WIGSS (WIGTN Crew) for the Trae.ai Hackathon 2026**
 
 *Theme: "Agent"*
 

@@ -89,11 +89,54 @@ export default function FloatingToolbar() {
           return;
         }
 
-        setDiffs(result.data.diffs);
-        setSaveState('preview');
-        const diffFiles = result.data.diffs.map((d: any) => d.file?.split('/').pop()).filter(Boolean).join(', ');
-        setSaveMessage(`${result.data.diffs.length}개 파일 변경 준비됨 (${diffFiles}). "Apply" 클릭하여 적용.`);
-        addLog('diff_preview', `Generated ${result.data.diffs.length} diff(s)`);
+        // Auto-apply immediately (no 2-step confirmation)
+        const generatedDiffs = result.data.diffs;
+        const diffFiles = generatedDiffs.map((d: any) => d.file?.split('/').pop()).filter(Boolean).join(', ');
+        setSaveState('applying');
+        setSaveMessage(`${generatedDiffs.length}개 변경 적용 중 (${diffFiles})...`);
+        addLog('diff_preview', `Generated ${generatedDiffs.length} diff(s), auto-applying...`);
+
+        // Apply immediately
+        const applyResponse = await fetch('/api/apply', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ diffs: generatedDiffs, projectPath: effectivePath }),
+        });
+        const applyResult = await applyResponse.json() as {
+          success: boolean;
+          data?: { applied: number; filesChanged: string[]; failed: { file: string; reason: string }[] };
+          error?: { message?: string };
+        };
+
+        if (!applyResponse.ok || !applyResult.success || !applyResult.data) {
+          throw new Error(applyResult.error?.message || 'Failed to apply changes');
+        }
+
+        const { applied, filesChanged, failed } = applyResult.data;
+        const fileList = filesChanged.map((f: string) => f.split('/').pop()).join(', ');
+        setSaveState('done');
+        setSaveMessage(`✓ 저장 완료! ${applied}개 수정 적용: ${fileList}`);
+        addLog('apply_done', `Applied ${applied} diff(s) across ${filesChanged.length} file(s)`);
+
+        if (failed.length > 0) {
+          addLog('apply_partial', `${failed.length} diff(s) failed`);
+        }
+
+        clearChanges();
+        setDiffs([]);
+
+        // Reload iframe + re-scan
+        setTimeout(() => {
+          const iframes = document.querySelectorAll('iframe');
+          for (const iframe of Array.from(iframes)) {
+            try { iframe.contentWindow?.location.reload(); } catch {}
+          }
+        }, 1000);
+        setTimeout(() => {
+          sendMessage('scan', { url: targetUrl, projectPath: effectivePath });
+        }, 3000);
+
+        setTimeout(() => { setSaveState('idle'); setSaveMessage(''); }, 5000);
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error);
         setSaveState('error');
@@ -105,70 +148,8 @@ export default function FloatingToolbar() {
       return;
     }
 
-    // Step 2: Apply diffs to source files
-    if (diffs.length > 0) {
-      setSaveState('applying');
-      setSaveMessage(`Applying ${diffs.length} change(s) to source code...`);
-      addLog('apply_start', `Applying ${diffs.length} diff(s)`);
-
-      try {
-        const response = await fetch('/api/apply', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ diffs, projectPath: effectivePath }),
-        });
-        const result = await response.json() as {
-          success: boolean;
-          data?: { applied: number; filesChanged: string[]; failed: { file: string; reason: string }[] };
-          error?: { message?: string };
-        };
-
-        if (!response.ok || !result.success || !result.data) {
-          throw new Error(result.error?.message || 'Failed to apply changes');
-        }
-
-        const { applied, filesChanged, failed } = result.data;
-        setSaveState('done');
-        const fileList = filesChanged.map((f: string) => f.split('/').pop()).join(', ');
-        setSaveMessage(`✓ 저장 완료! ${applied}개 수정 적용: ${fileList}`);
-        addLog('apply_done', `Applied ${applied} diff(s) across ${filesChanged.length} file(s)`);
-
-        if (failed.length > 0) {
-          addLog('apply_partial', `${failed.length} diff(s) failed`);
-        }
-
-        clearChanges();
-        setDiffs([]);
-
-        // Reload iframe to show updated page, then re-scan
-        setTimeout(() => {
-          const iframes = document.querySelectorAll('iframe');
-          for (const iframe of Array.from(iframes)) {
-            try { iframe.contentWindow?.location.reload(); } catch { /* cross-origin */ }
-          }
-        }, 1000);
-        // Re-scan after iframe reloads
-        setTimeout(() => {
-          sendMessage('scan', { url: targetUrl, projectPath: effectivePath });
-        }, 3000);
-
-        setTimeout(() => { setSaveState('idle'); setSaveMessage(''); }, 5000);
-      } catch (error) {
-        const msg = error instanceof Error ? error.message : String(error);
-        setSaveState('error');
-        setSaveMessage(`Error: ${msg}`);
-        addLog('apply_error', msg);
-        setDiffs([]);
-        setTimeout(() => { setSaveState('idle'); setSaveMessage(''); }, 4000);
-      }
-    }
   };
 
-  const handleCancelDiffs = () => {
-    setDiffs([]);
-    setSaveState('idle');
-    setSaveMessage('');
-  };
 
   const handleToggleViewport = () => {
     const next = viewportMode === 'desktop' ? 'mobile' : 'desktop';
@@ -209,33 +190,20 @@ export default function FloatingToolbar() {
 
         <div className="w-px h-5 bg-gray-700 mx-1" />
 
-        {/* Save: multi-step with visual feedback */}
-        {saveState === 'preview' ? (
-          <>
-            <ToolbarButton onClick={handleSave} title="Apply changes to source code">
-              <SaveIcon />
-              <span className="text-green-400">Apply ({diffs.length})</span>
-            </ToolbarButton>
-            <ToolbarButton onClick={handleCancelDiffs} title="Cancel">
-              <span className="text-red-400 text-xs">Cancel</span>
-            </ToolbarButton>
-          </>
-        ) : (
-          <ToolbarButton
-            onClick={handleSave}
-            disabled={(changes.length === 0 && diffs.length === 0) || saveState === 'generating' || saveState === 'applying'}
-            title={saveState === 'generating' ? 'Generating...' : saveState === 'applying' ? 'Applying...' : 'Save changes'}
-          >
-            <SaveIcon />
-            <span>
-              {saveState === 'generating' ? 'Generating...' :
-               saveState === 'applying' ? 'Applying...' :
-               saveState === 'done' ? 'Saved!' :
-               saveState === 'error' ? 'Error' :
-               `Save${changes.length > 0 ? ` (${changes.length})` : ''}`}
-            </span>
-          </ToolbarButton>
-        )}
+        <ToolbarButton
+          onClick={handleSave}
+          disabled={changes.length === 0 || saveState === 'generating' || saveState === 'applying'}
+          title="Save changes to source code"
+        >
+          <SaveIcon />
+          <span>
+            {saveState === 'generating' ? '생성 중...' :
+             saveState === 'applying' ? '적용 중...' :
+             saveState === 'done' ? '저장 완료!' :
+             saveState === 'error' ? '오류' :
+             `Save${changes.length > 0 ? ` (${changes.length})` : ''}`}
+          </span>
+        </ToolbarButton>
 
         <ToolbarButton
           onClick={undo}

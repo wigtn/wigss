@@ -7,12 +7,25 @@ function applyDiff(content: string, diff: CodeDiff): { ok: true; content: string
   const original = diff.original ?? '';
   const modified = diff.modified ?? '';
 
-  // Safety: reject diffs that look like they're modifying unrelated code
+  // Safety: reject dangerous diffs
+  // 1. Reject inline style props being added to unrelated code
   if (modified.includes('marginRight=') || modified.includes('marginLeft=') ||
       modified.includes('marginTop=') || modified.includes('marginBottom=')) {
     if (!original.includes('margin')) {
-      return { ok: false, reason: `Rejected: diff adds inline margin prop to unrelated code in "${diff.file}"` };
+      return { ok: false, reason: `Rejected: adds inline margin to unrelated code` };
     }
+  }
+
+  // 2. Reject if modified text looks like it breaks function/component structure
+  if (modified.includes('className=') && !original.includes('className')) {
+    return { ok: false, reason: `Rejected: adds className to non-className context` };
+  }
+
+  // 3. Reject if original and modified line counts differ drastically (sign of bad diff)
+  const origLines = original.split('\n').length;
+  const modLines = modified.split('\n').length;
+  if (Math.abs(origLines - modLines) > 3) {
+    return { ok: false, reason: `Rejected: diff changes ${origLines} lines to ${modLines} lines (too many structural changes)` };
   }
 
   if (original.length > 0) {
@@ -135,6 +148,31 @@ export async function POST(req: NextRequest) {
       }
 
       if (fileAppliedCount > 0) {
+        // Basic syntax validation before writing
+        const isTsx = file.endsWith('.tsx') || file.endsWith('.jsx');
+        if (isTsx) {
+          // Check balanced braces/parens
+          const opens = (content.match(/[{(]/g) || []).length;
+          const closes = (content.match(/[})]/g) || []).length;
+          if (Math.abs(opens - closes) > 2) {
+            failed.push({ file, reason: `Syntax check failed: unbalanced brackets (${opens} opens vs ${closes} closes). Skipping write.` });
+            continue;
+          }
+          // Check for obvious broken patterns
+          if (content.includes('className="') && content.includes('\n  return (')) {
+            const classNameBeforeReturn = content.indexOf('className="');
+            const returnIdx = content.indexOf('\n  return (');
+            if (classNameBeforeReturn > 0 && classNameBeforeReturn < returnIdx) {
+              // className appearing in function params area — likely broken
+              const beforeClassName = content.slice(Math.max(0, classNameBeforeReturn - 50), classNameBeforeReturn);
+              if (beforeClassName.includes(',') && !beforeClassName.includes('{') && !beforeClassName.includes('<')) {
+                failed.push({ file, reason: `Syntax check failed: className in function params area. Skipping write.` });
+                continue;
+              }
+            }
+          }
+        }
+
         await writeSourceFile(absolutePath, content);
         filesChanged.push(file);
       }
