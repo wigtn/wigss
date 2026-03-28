@@ -20,10 +20,10 @@ export default function Hero() {
             build interfaces that users love. Strategy-first, pixel-perfect delivery.
           </p>
           <div className="flex items-center gap-2">
-            <button className="px-16 py-6 bg-violet-600 text-white font-medium rounded-xl hover:bg-violet-500 transition-colors text-xl">
+            <button className="px-24 py-6 bg-violet-600 text-white font-medium rounded-xl hover:bg-violet-500 transition-colors text-xl">
               View Our Work
             </button>
-            <button className="px-[491px] py-1 border border-gray-700 text-gray-300 font-medium rounded-xl hover:border-gray-500 hover:text-white transition-colors text-[10px]">
+            <button className="px-[214px] py-[18.5px] border border-gray-700 text-gray-300 font-medium rounded-xl hover:border-gray-500 hover:text-white transition-colors text-xs">
               Get in Touch
             </button>
           </div>
