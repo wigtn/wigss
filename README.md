@@ -23,7 +23,7 @@ cd my-project
 npm run dev                          # Your dev server on port 3000
 
 # In another terminal:
-npx wigss@latest --port 3000         # Prompts for API key, then opens browser
+npx wigss@latest --port <your-port-number>         # Prompts for API key, then opens browser
 ```
 
 Or try the built-in demo (no existing project needed):
@@ -77,13 +77,13 @@ Click **Save** — AI generates Tailwind diffs → applies to source files → i
 npx wigss@latest [options]
 ```
 
-| Flag | Default | Description |
-|------|---------|-------------|
-| `-p, --port <port>` | `3000` | Target dev server port |
-| `--wigss-port <port>` | `4000` | WIGSS editor port |
-| `--key <key>` | — | OpenAI API key (or set `OPENAI_API_KEY` env var) |
-| `--demo` | — | Run with built-in demo page (no project needed) |
-| `-V, --version` | — | Show version |
+| Flag                  | Default | Description                                      |
+| --------------------- | ------- | ------------------------------------------------ |
+| `-p, --port <port>`   | `3000`  | Target dev server port                           |
+| `--wigss-port <port>` | `4000`  | WIGSS editor port                                |
+| `--key <key>`         | —       | OpenAI API key (or set `OPENAI_API_KEY` env var) |
+| `--demo`              | —       | Run with built-in demo page (no project needed)  |
+| `-V, --version`       | —       | Show version                                     |
 
 If no `--key` is provided and `OPENAI_API_KEY` is not set, WIGSS will **prompt interactively**.
 
@@ -101,22 +101,22 @@ If no `--key` is provided and `OPENAI_API_KEY` is not set, WIGSS will **prompt i
 
 ## AI Agent: 5 Autonomous Actions
 
-| # | Action | Model | Trigger |
-|---|--------|-------|---------|
-| 1 | **Component Detection** | GPT-4o | After Scan |
-| 2 | **Design Suggestions** | GPT-4o | After detection (with confidence scores) |
-| 3 | **Real-time Feedback** | GPT-4o | After drag/resize |
-| 4 | **Chat Consultation** | GPT-4o | User question or delegation |
-| 5 | **Code Refactoring** | GPT-5.4 | On Save |
+| #   | Action                  | Model   | Trigger                                  |
+| --- | ----------------------- | ------- | ---------------------------------------- |
+| 1   | **Component Detection** | GPT-4o  | After Scan                               |
+| 2   | **Design Suggestions**  | GPT-4o  | After detection (with confidence scores) |
+| 3   | **Real-time Feedback**  | GPT-4o  | After drag/resize                        |
+| 4   | **Chat Consultation**   | GPT-4o  | User question or delegation              |
+| 5   | **Code Refactoring**    | GPT-5.4 | On Save                                  |
 
 ### Why "Agent" Not "Tool"
 
-| | Typical AI Tool | WIGSS Agent |
-|--|----------------|-------------|
-| Initiative | Waits for commands | Proactively suggests improvements |
-| Scope | Single action per request | Multi-step autonomous pipeline |
-| Communication | Request → Response | Always-on WebSocket |
-| Result | Generated text | Source files actually modified |
+|               | Typical AI Tool           | WIGSS Agent                       |
+| ------------- | ------------------------- | --------------------------------- |
+| Initiative    | Waits for commands        | Proactively suggests improvements |
+| Scope         | Single action per request | Multi-step autonomous pipeline    |
+| Communication | Request → Response        | Always-on WebSocket               |
+| Result        | Generated text            | Source files actually modified    |
 
 ---
 
