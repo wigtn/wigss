@@ -1,6 +1,6 @@
 # Task Plan: WIGSS
 
-> **PRD**: docs/prd/PRD_wigss.md (v5.1)
+> **PRD**: docs/prd/PRD_wigss.md (v5.2)
 > **Updated**: 2026-03-28
 > **Status**: in_progress
 > **Hackathon**: 2026-03-28
@@ -22,13 +22,13 @@
 
 - [x] 0.1 Playwright 설치 + localhost 스캔 테스트 (DOM + 스크린샷)
 - [x] 0.2 OpenAI API function calling 테스트
-- [x] 0.3 Claude API tool use 테스트
+- [x] 0.3 OpenAI GPT-5.4 function calling 테스트
 - [x] 0.4 WebSocket (ws) 서버-클라이언트 연결 PoC
 - [x] 0.5 iframe + fabric.js Canvas 드래그/리사이즈 PoC
 - [x] 0.6 Next.js 14 프로젝트 생성 (pnpm, TypeScript, Tailwind)
 - [x] 0.7 디렉토리 구조 생성 (PRD 6.5 기준)
-- [x] 0.8 의존성 설치 (playwright, openai, @anthropic-ai/sdk, zustand, fabric, ws, chokidar, commander, open)
-- [x] 0.9 .env.local (OPENAI_API_KEY + ANTHROPIC_API_KEY) + CLAUDE.md
+- [x] 0.8 의존성 설치 (playwright, openai, zustand, fabric, ws, chokidar, commander, open)
+- [x] 0.9 .env.local (OPENAI_API_KEY) + CLAUDE.md
 - [x] 0.10 bin/cli.js 기본 구조 (commander --port, cwd 감지, open)
 
 **판단**: 0.1~0.5 실패 시 PRD 9.1 Fallback 참조
@@ -88,16 +88,16 @@
 
 ### Phase 3: 리팩토링 + 자기 검증 (2h) ★핵심★
 
-- [ ] 3.1 Claude 클라이언트 (lib/agent/claude-client.ts)
-- [ ] 3.2 [저장] → Claude API로 변경 delta → 소스코드 diff 생성
+- [ ] 3.1 GPT-5.4 리팩토링 클라이언트 (lib/agent/refactor-client.ts)
+- [ ] 3.2 [저장] → GPT-5.4로 변경 delta → 소스코드 diff 생성
 - [ ] 3.3 DiffPreview 패널 (before/after + 설명)
 - [ ] 3.4 POST /api/apply → 소스 파일 수정 + 백업 (REST, 안전)
-- [ ] 3.5 자기 검증 루프: Playwright 재렌더링 → 비교 → Claude 재수정 (최대 3회)
+- [ ] 3.5 자기 검증 루프: Playwright 재렌더링 → 비교 → GPT-5.4 재수정 (최대 3회)
 - [ ] 3.6 AgentPanel에 검증 상태 표시
 - [ ] 3.7 chokidar 파일 변경 감지 → "다시 스캔?" 알림
 
 **검증**: 편집 → 저장 → diff → 적용 → 검증 → (불일치 시) 재수정 → 통과
-**커밋**: `feat: Claude refactoring + self-verification loop`
+**커밋**: `feat: GPT-5.4 refactoring + self-verification loop`
 
 ### Phase 4: Polish & Demo (2h)
 
@@ -134,7 +134,7 @@
 | 00~01h | 2.1~2.4 (iframe + fabric.js Canvas + 드래그/리사이즈) |
 | 01~02h | 2.5~2.6 (변경 추적 + 실시간 피드백) |
 | 02~03h | 2.7~2.10 (채팅 + 반응형) |
-| 03~04h | 3.1~3.3 (Claude 리팩토링 + diff) |
+| 03~04h | 3.1~3.3 (GPT-5.4 리팩토링 + diff) |
 | 04~05h | 3.4~3.7 (적용 + 검증 루프 + 파일 감시) |
 | 05~05.5h | 4.1~4.4 (안정성 + CLI + UI) |
 | 05.5~06.5h | 4.5~4.7 (데모 리허설 3회) |

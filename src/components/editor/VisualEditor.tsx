@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Canvas, Rect, Text as FabricText } from 'fabric';
 import { useEditorStore } from '@/stores/editor-store';
 import { useAgentStore } from '@/stores/agent-store';
@@ -82,6 +82,25 @@ function readRectBox(rect: EditableRect): BoundingBox {
   };
 }
 
+function getCanvasDimensions(
+  viewport: HTMLDivElement | null,
+  components: { boundingBox: BoundingBox }[],
+) {
+  const width = viewport?.clientWidth ?? 0;
+  const viewportHeight = viewport?.clientHeight ?? 0;
+  let maxBottom = 0;
+
+  for (const component of components) {
+    const bottom = component.boundingBox.y + component.boundingBox.height;
+    if (bottom > maxBottom) {
+      maxBottom = bottom;
+    }
+  }
+
+  const height = Math.max(viewportHeight, maxBottom + 80);
+  return { width, height };
+}
+
 export default function VisualEditor() {
   const targetUrl = useEditorStore((s) => s.targetUrl);
   const components = useEditorStore((s) => s.components);
@@ -97,6 +116,14 @@ export default function VisualEditor() {
   const fabricCanvasRef = useRef<Canvas | null>(null);
   const rectMapRef = useRef<Map<string, EditableRect>>(new Map());
   const labelMapRef = useRef<Map<string, LabelText>>(new Map());
+  const componentsRef = useRef(components);
+  const resizeCanvasRef = useRef<(() => void) | null>(null);
+  const [canvasHeight, setCanvasHeight] = useState(0);
+
+  useEffect(() => {
+    componentsRef.current = components;
+    resizeCanvasRef.current?.();
+  }, [components]);
 
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -108,12 +135,16 @@ export default function VisualEditor() {
     fabricCanvasRef.current = canvas;
 
     const resize = () => {
-      if (!viewportRef.current) return;
-      const width = viewportRef.current.clientWidth;
-      const height = viewportRef.current.clientHeight;
+      const { width, height } = getCanvasDimensions(
+        viewportRef.current,
+        componentsRef.current,
+      );
+      if (width <= 0 || height <= 0) return;
+      setCanvasHeight(height);
       canvas.setDimensions({ width, height });
       canvas.requestRenderAll();
     };
+    resizeCanvasRef.current = resize;
 
     const updateLabelPosition = (rect: EditableRect) => {
       const label = labelMapRef.current.get(rect.data?.componentId ?? '');
@@ -242,6 +273,7 @@ export default function VisualEditor() {
       canvas.off('selection:cleared', onSelectionCleared);
       canvas.dispose();
       fabricCanvasRef.current = null;
+      resizeCanvasRef.current = null;
       rectMapRef.current.clear();
       labelMapRef.current.clear();
     };
@@ -251,8 +283,6 @@ export default function VisualEditor() {
     const canvas = fabricCanvasRef.current;
     if (!canvas) return;
 
-    // Only create objects if they don't exist yet
-    // This prevents re-creating the entire canvas during drag/resize
     let needsInitialRender = false;
 
     for (const component of components) {
@@ -301,7 +331,6 @@ export default function VisualEditor() {
       canvas.add(label);
     }
 
-    // Handle removal of deleted components
     for (const [id, rect] of Array.from(rectMapRef.current.entries())) {
       if (!components.find((c) => c.id === id)) {
         needsInitialRender = true;
@@ -320,7 +349,8 @@ export default function VisualEditor() {
       pushCanvasSnapshot(canvas.toJSON());
       canvas.requestRenderAll();
     }
-  }, [components, selectedComponentId, pushCanvasSnapshot]);
+    resizeCanvasRef.current?.();
+  }, [components, pushCanvasSnapshot]);
 
   useEffect(() => {
     const canvas = fabricCanvasRef.current;
@@ -333,7 +363,6 @@ export default function VisualEditor() {
       const label = labelMapRef.current.get(component.id);
       if (!rect || !label) continue;
 
-      // 1. Update styling based on selection
       const style = getRectStyle(component.type, component.id === selectedComponentId);
       if (rect.fill !== style.fill || rect.stroke !== style.stroke) {
         rect.set({
@@ -345,8 +374,6 @@ export default function VisualEditor() {
         needsRender = true;
       }
 
-      // 2. Sync coordinates (for auto_modify and feedback apply)
-      // We only update if the component's state box is different from the rect's box
       const box = component.boundingBox;
       const currentBox = rect.data?.box;
       
@@ -356,7 +383,6 @@ export default function VisualEditor() {
         box.width !== currentBox.width || 
         box.height !== currentBox.height
       )) {
-        // Stop canvas from firing modified events while we update it programmatically
         rect.set({
           left: box.x,
           top: box.y,
@@ -371,7 +397,6 @@ export default function VisualEditor() {
           top: Math.max(0, box.y - 16),
         });
 
-        // Update rect's internal data so we know it's synced
         rect.data = { ...rect.data!, box: { ...box } };
         needsRender = true;
       }
@@ -393,6 +418,7 @@ export default function VisualEditor() {
     if (needsRender) {
       canvas.requestRenderAll();
     }
+    resizeCanvasRef.current?.();
   }, [components, selectedComponentId]);
 
   const iframeWidth = viewportMode === 'mobile' ? 375 : '100%';
@@ -401,7 +427,7 @@ export default function VisualEditor() {
     <div className="relative flex-1 bg-gray-950 overflow-hidden flex items-start justify-center">
       <div
         ref={viewportRef}
-        className="relative h-full transition-all duration-300 ease-out"
+        className="relative h-full overflow-y-auto overflow-x-hidden transition-all duration-300 ease-out"
         style={{
           width: typeof iframeWidth === 'number' ? iframeWidth : undefined,
           maxWidth: typeof iframeWidth === 'string' ? iframeWidth : undefined,
@@ -409,15 +435,22 @@ export default function VisualEditor() {
         }}
       >
         {targetUrl ? (
-          <>
+          <div
+            className="relative w-full min-h-full"
+            style={{ height: canvasHeight > 0 ? canvasHeight : undefined }}
+          >
             <iframe
               src={targetUrl}
-              className="w-full h-full border-0 bg-white"
-              style={{ pointerEvents: 'none' }}
+              className="w-full border-0 bg-white"
+              style={{ height: canvasHeight > 0 ? canvasHeight : '100%', pointerEvents: 'none' }}
               title="Target page preview"
             />
-            <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
-          </>
+            <canvas
+              ref={canvasRef}
+              className="absolute inset-0 w-full"
+              style={{ pointerEvents: 'auto' }}
+            />
+          </div>
         ) : (
           <div className="flex items-center justify-center h-full text-gray-600">
             <div className="text-center">

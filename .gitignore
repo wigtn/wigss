@@ -5,16 +5,35 @@ node_modules/
 # next.js
 .next/
 out/
+build/
 
-# env
+# env (secrets)
+.env
 .env.local
 .env*.local
+.env.production
 
 # misc
 .DS_Store
 *.tsbuildinfo
 next-env.d.ts
+*.log
+*.pid
+
+# editor artifacts
+*.bak
+*.backup
+
+# playwright
+playwright-report/
+test-results/
 
 # demo-target
 demo-target/node_modules/
 demo-target/.next/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo

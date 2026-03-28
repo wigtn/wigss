@@ -9,7 +9,7 @@
 [![Next.js](https://img.shields.io/badge/Next.js-14-black?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
-[![Claude API](https://img.shields.io/badge/Claude_API-Tool_Use-D97757?style=for-the-badge&logo=anthropic&logoColor=white)](https://docs.anthropic.com/)
+[![OpenAI](https://img.shields.io/badge/OpenAI-GPT--4o_+_GPT--5.4-412991?style=for-the-badge&logo=openai&logoColor=white)](https://platform.openai.com/)
 [![Playwright](https://img.shields.io/badge/Playwright-Locator-2EAD33?style=for-the-badge&logo=playwright&logoColor=white)](https://playwright.dev/)
 [![Zustand](https://img.shields.io/badge/Zustand-State-433E38?style=for-the-badge&logo=react&logoColor=white)](https://zustand-demo.pmnd.rs/)
 
@@ -55,8 +55,8 @@ No new code generated from scratch. Your existing codebase is refactored.
 | **1** | **Component Auto-Detection** | Analyzes DOM, autonomously identifies Navbar, Card Grid, Sidebar etc. | GPT-4o |
 | **2** | **Real-time Edit Feedback** | After each drag/resize: "8px misaligned", "card too small" — instant review | GPT-4o |
 | **3** | **Chat Consultation** | "How should I fix the footer?" — analysis + suggestions. "Do it for me" — auto-modify with confirmation | GPT-4o |
-| **4** | **Source Code Refactoring** | Maps visual changes to actual source files, generates precise diffs | Claude |
-| **5** | **Self-Verification Loop** | Re-renders after refactoring, auto-fixes mismatches (up to 3 retries) | Claude |
+| **4** | **Source Code Refactoring** | Maps visual changes to actual source files, generates precise diffs | GPT-5.4 |
+| **5** | **Self-Verification Loop** | Re-renders after refactoring, auto-fixes mismatches (up to 3 retries) | GPT-5.4 |
 
 > The agent doesn't just respond to commands. It **observes, suggests, acts, and verifies on its own.**
 
@@ -78,7 +78,7 @@ Browser (localhost:4000)
 │   ▼
 WIGSS Agent (Node.js, event-driven)
 ├── OpenAI GPT-4o — observe, detect, suggest, feedback, chat, responsive
-├── Claude API — code refactoring, self-verification
+├── OpenAI GPT-5.4 — code refactoring, self-verification
 ├── Playwright — DOM scan, verification re-render
 ├── chokidar — file change detection
 └── fs — source code read/write
@@ -94,7 +94,7 @@ WIGSS Agent (Node.js, event-driven)
 | **Visual Editor** | iframe + fabric.js Canvas | Live page with draggable components |
 | **Drag/Resize** | fabric.js | Object-based component manipulation |
 | **State** | Zustand | Component state + change tracking |
-| **AI** | Claude API (Tool Use) | Component detection + refactoring |
+| **AI** | OpenAI GPT-4o + GPT-5.4 | Component detection + refactoring |
 | **DOM Scan** | Playwright | Browser automation |
 | **File I/O** | Node.js fs | Source code read/write |
 
@@ -127,8 +127,8 @@ pnpm install
 
 ```bash
 cp .env.example .env.local
-# Add your Anthropic API key
-# ANTHROPIC_API_KEY=sk-ant-...
+# Add your OpenAI API key
+# OPENAI_API_KEY=sk-...
 ```
 
 ### Run
@@ -177,9 +177,9 @@ npx wigss --port 3000
 
 ```
 docs/
-├── prd/PRD_wigss.md           # Product Requirements (v5.1)
+├── prd/PRD_wigss.md           # Product Requirements (v5.2)
 ├── todo_plan/PLAN_wigss.md    # Execution Plan (D-1 / D-Day)
-└── ARCHITECTURE.md            # System Architecture (v2.1)
+└── ARCHITECTURE.md            # System Architecture (v2.2)
 ```
 
 ## License

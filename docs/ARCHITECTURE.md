@@ -1,8 +1,8 @@
 # WIGSS Architecture
 
-> **Version**: 2.1
-> **Updated**: 2026-03-28 (WebSocket 에이전트, 이벤트 기반, 하이브리드 AI, 채팅)
-> **PRD Reference**: docs/prd/PRD_wigss.md (v5.1)
+> **Version**: 2.2
+> **Updated**: 2026-03-27 (OpenAI 듀얼 모델 전환: GPT-4o + GPT-5.4)
+> **PRD Reference**: docs/prd/PRD_wigss.md (v5.2)
 
 ---
 
@@ -49,7 +49,7 @@ $ npx wigss --port 3000
 │  └── 내부 트리거: 스캔완료→인식, 적용완료→검증                  │
 │                                                               │
 │  ┌──────────────────┐  ┌──────────────────┐                  │
-│  │ OpenAI GPT-4o    │  │ Claude API       │                  │
+│  │ OpenAI GPT-4o    │  │ OpenAI GPT-5.4   │                  │
 │  │ (관찰/인식/제안/  │  │ (코드 리팩토링/  │                  │
 │  │  피드백/채팅/반응형)│  │  검증 수정)      │                  │
 │  └──────────────────┘  └──────────────────┘                  │
@@ -68,9 +68,9 @@ $ npx wigss --port 3000
 | 채팅 | 사용자 | 의견/위임/지시 | GPT-4o |
 | 제안 [적용] | 사용자 | **없음** (즉시 적용) | - |
 | 모바일 보기 | 사용자 | 반응형 변환 | GPT-4o |
-| 저장 | 사용자 | 코드 리팩토링 | **Claude** |
-| 적용 완료 | 내부 자동 | 자기 검증 | Playwright + **Claude** |
-| 검증 실패 | 내부 자동 | 자동 재수정 (최대 3회) | **Claude** |
+| 저장 | 사용자 | 코드 리팩토링 | **GPT-5.4** |
+| 적용 완료 | 내부 자동 | 자기 검증 | Playwright + **GPT-5.4** |
+| 검증 실패 | 내부 자동 | 자동 재수정 (최대 3회) | **GPT-5.4** |
 | 파일 변경 | chokidar | 알림만 (AI 없음) | - |
 
 **핵심**: 대기 중 비용 ZERO. AI는 이벤트 발생 시에만 호출.
@@ -88,12 +88,12 @@ Agent → Frontend:
   diff_preview, refactoring_progress, verification_result, file_changed
 ```
 
-## 4. 하이브리드 AI
+## 4. OpenAI 듀얼 모델
 
 | 역할 | 모델 | 이유 |
 |------|------|------|
 | 관찰/인식/제안/피드백/채팅/반응형 | **OpenAI GPT-4o** | 빠른 응답, function calling |
-| 코드 리팩토링/검증 수정 | **Claude API** | 코드 정밀도 |
+| 코드 리팩토링/검증 수정 | **OpenAI GPT-5.4** | 코드 정밀도 |
 
 ## 5. 오버레이 편집 방식
 
