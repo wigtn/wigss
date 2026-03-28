@@ -37,3 +37,6 @@ demo-target/.next/
 .vscode/
 *.swp
 *.swo
+
+# local AI/tool settings
+.claude/settings.local.json
