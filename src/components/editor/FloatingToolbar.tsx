@@ -230,12 +230,24 @@ export default function FloatingToolbar() {
         </ToolbarButton>
       </div>
 
-      {/* Right: Agent status */}
-      <div className="flex items-center gap-2">
-        <div className={`w-2 h-2 rounded-full ${connected ? STATUS_COLORS[status] || 'bg-gray-400' : 'bg-red-500'}`} />
-        <span className="text-xs text-gray-400">
-          {connected ? STATUS_LABELS[status] || status : 'Disconnected'}
-        </span>
+      {/* Right: Agent status & Trae Badge */}
+      <div className="flex items-center gap-4">
+        <a
+          href="https://trae.ai"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 hover:bg-blue-500/20 transition-colors group"
+        >
+          <span className="text-[10px] font-medium text-blue-400/80 group-hover:text-blue-300">Built with</span>
+          <span className="text-[10px] font-bold text-blue-400 group-hover:text-blue-300">Trae.ai</span>
+        </a>
+
+        <div className="flex items-center gap-2">
+          <div className={`w-2 h-2 rounded-full ${connected ? STATUS_COLORS[status] || 'bg-gray-400' : 'bg-red-500'}`} />
+          <span className="text-xs text-gray-400">
+            {connected ? STATUS_LABELS[status] || status : 'Disconnected'}
+          </span>
+        </div>
       </div>
     </div>
 
