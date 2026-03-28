@@ -21,6 +21,7 @@ export interface DetectedComponent {
   reasoning: string;
   children?: DetectedComponent[];
   depth?: number;
+  fullClassName?: string;
 }
 
 // === Change Types ===

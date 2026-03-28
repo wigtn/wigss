@@ -144,6 +144,7 @@ export default function VisualEditor() {
             sourceFile,
             reasoning: sourceFile ? `→ ${sourceFile}` : 'no source mapping',
             depth: el.depth ?? 0,
+            fullClassName: typeof el.className === 'string' ? el.className : '',
           };
         });
         useEditorStore.getState().setComponents(comps);

@@ -1,0 +1,13 @@
+.git
+.next
+.env
+.env.local
+.env*.local
+*.bak.*
+demo-target/.next
+demo-target/node_modules
+docs/
+.claude/
+.vscode/
+.idea/
+playwright-report/

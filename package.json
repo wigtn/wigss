@@ -2,7 +2,12 @@
   "name": "wigss",
   "version": "0.1.0",
   "description": "WIGSS (Style Shaper) — visual code refactoring tool with always-on AI agent",
-  "private": true,
+  "license": "MIT",
+  "author": "Team WIGSS (WIGTN Crew)",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wigtn/wigss"
+  },
   "bin": {
     "wigss": "./bin/cli.js"
   },

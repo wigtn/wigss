@@ -59,13 +59,97 @@ export async function generateRefactorDiffs(input: {
     latestChanges.set(change.componentId, change);
   }
 
+  // Tailwind px→class mapping for pre-calculation
+  const TW_SPACING: Record<number, string> = {
+    0:'0', 2:'0.5', 4:'1', 6:'1.5', 8:'2', 10:'2.5', 12:'3', 14:'3.5',
+    16:'4', 20:'5', 24:'6', 28:'7', 32:'8', 36:'9', 40:'10', 44:'11',
+    48:'12', 56:'14', 64:'16', 80:'20', 96:'24', 112:'28', 128:'32',
+    160:'40', 192:'48', 224:'56', 256:'64', 288:'72', 320:'80', 384:'96',
+  };
+
+  function pxToTailwind(px: number, prefix: string): string {
+    const closest = Object.keys(TW_SPACING)
+      .map(Number)
+      .reduce((prev, curr) => Math.abs(curr - px) < Math.abs(prev - px) ? curr : prev, 0);
+    if (Math.abs(closest - px) <= 2) {
+      return `${prefix}-${TW_SPACING[closest]}`;
+    }
+    return `${prefix}-[${Math.round(px)}px]`;
+  }
+
+  function suggestClassChange(from: any, to: any, type: string, fullClassName: string): string {
+    const suggestions: string[] = [];
+
+    if (type === 'resize') {
+      const dw = (to.width ?? 0) - (from.width ?? 0);
+      const dh = (to.height ?? 0) - (from.height ?? 0);
+
+      if (Math.abs(dw) > 2) {
+        // Find current w-XX or px-XX in className
+        const wMatch = fullClassName.match(/\b(w-\[?\d+)/);
+        const pxMatch = fullClassName.match(/\b(px-\[?\d+)/);
+        if (wMatch) {
+          suggestions.push(`Width: change "${wMatch[0]}" → "${pxToTailwind(to.width, 'w')}"`);
+        } else if (pxMatch) {
+          // px changes affect width
+          const currentPx = parseInt(pxMatch[0].replace(/\D/g, ''));
+          const newPx = Math.max(0, currentPx + Math.round(dw / 2));
+          suggestions.push(`Padding: change "${pxMatch[0]}" → "${pxToTailwind(newPx, 'px')}"`);
+        } else {
+          suggestions.push(`Width changed by ${dw}px → add or change w-XX class to "${pxToTailwind(to.width, 'w')}"`);
+        }
+      }
+      if (Math.abs(dh) > 2) {
+        const hMatch = fullClassName.match(/\b(h-\[?\d+)/);
+        const pyMatch = fullClassName.match(/\b(py-\[?\d+)/);
+        if (hMatch) {
+          suggestions.push(`Height: change "${hMatch[0]}" → "${pxToTailwind(to.height, 'h')}"`);
+        } else if (pyMatch) {
+          const currentPy = parseInt(pyMatch[0].replace(/\D/g, ''));
+          const newPy = Math.max(0, currentPy + Math.round(dh / 2));
+          suggestions.push(`Padding: change "${pyMatch[0]}" → "${pxToTailwind(newPy, 'py')}"`);
+        } else {
+          suggestions.push(`Height changed by ${dh}px → add or change h-XX class to "${pxToTailwind(to.height, 'h')}"`);
+        }
+      }
+    }
+
+    if (type === 'move') {
+      const dy = (to.y ?? 0) - (from.y ?? 0);
+      const dx = (to.x ?? 0) - (from.x ?? 0);
+      if (Math.abs(dy) > 2) {
+        const mtMatch = fullClassName.match(/\b(mt-\[?\d+)/);
+        if (mtMatch) {
+          const currentMt = parseInt(mtMatch[0].replace(/\D/g, ''));
+          const newMt = Math.max(0, currentMt + dy);
+          suggestions.push(`Margin-top: change "${mtMatch[0]}" → "${pxToTailwind(newMt, 'mt')}"`);
+        } else {
+          suggestions.push(`Y moved by ${dy}px → add "mt-[${Math.round(to.y)}px]" or adjust margin-top`);
+        }
+      }
+      if (Math.abs(dx) > 2) {
+        const mlMatch = fullClassName.match(/\b(ml-\[?\d+)/);
+        if (mlMatch) {
+          const currentMl = parseInt(mlMatch[0].replace(/\D/g, ''));
+          const newMl = Math.max(0, currentMl + dx);
+          suggestions.push(`Margin-left: change "${mlMatch[0]}" → "${pxToTailwind(newMl, 'ml')}"`);
+        }
+      }
+    }
+
+    return suggestions.join('; ') || 'No specific class suggestion';
+  }
+
   const changeSummary = Array.from(latestChanges.values()).map((change) => {
     const component = componentMap.get(change.componentId);
     const name = component?.name || '';
-    // Extract useful info from component name (format: "tagName.class1.class2: text")
     const parts = name.split(': ');
     const tagAndClass = parts[0] || '';
     const textContent = parts[1] || '';
+    const fullClassName = (component as any)?.fullClassName || '';
+
+    // Pre-calculate the exact Tailwind class change
+    const suggestedChange = suggestClassChange(change.from, change.to, change.type, fullClassName);
 
     return {
       componentId: change.componentId,
@@ -73,15 +157,10 @@ export async function generateRefactorDiffs(input: {
       from: change.from,
       to: change.to,
       componentName: name,
-      tagName: tagAndClass.split('.')[0] || '',
-      cssClasses: tagAndClass.split('.').slice(1).join(' ') || '',
       textContent: textContent,
       sourceFile: component?.sourceFile || '',
-      // Pre-calculate what changed
-      widthChange: change.type === 'resize' ? `${change.from.width}px → ${change.to.width}px` : null,
-      heightChange: change.type === 'resize' ? `${change.from.height}px → ${change.to.height}px` : null,
-      xChange: change.type === 'move' ? `${change.from.x}px → ${change.to.x}px` : null,
-      yChange: change.type === 'move' ? `${change.from.y}px → ${change.to.y}px` : null,
+      fullClassName: fullClassName,
+      suggestedTailwindChange: suggestedChange,
     };
   });
 
@@ -120,10 +199,17 @@ export async function generateRefactorDiffs(input: {
     '8. Return [] if unsure',
     '',
     '=== PROCESS ===',
-    '1. For each change, find the component name/text in the source files',
-    '2. Find the className="" string that controls the changed dimension',
-    '3. Calculate the target Tailwind class from the "to" pixel values using the reference',
-    '4. Output ONE diff per change, modifying only that className string',
+    '1. Each change has a "suggestedTailwindChange" field — FOLLOW IT. It tells you exactly which class to change.',
+    '2. Each change has "fullClassName" — search this string in the source files to find the exact line.',
+    '3. Find the className="..." string that contains the fullClassName value.',
+    '4. Apply the suggested change (e.g., change "h-24" to "h-16" in that className string).',
+    '5. Output ONE diff per change.',
+    '',
+    'EXAMPLE:',
+    '  suggestedTailwindChange: "Height: change h-24 → h-16"',
+    '  fullClassName: "h-24 bg-gray-900 py-8 px-8 flex items-center"',
+    '  → Find className="h-24 bg-gray-900 py-8 px-8 flex items-center" in source',
+    '  → Change to className="h-16 bg-gray-900 py-8 px-8 flex items-center"',
     '',
     'Layout changes:',
     JSON.stringify(changeSummary, null, 2),
