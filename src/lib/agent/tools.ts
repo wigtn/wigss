@@ -90,10 +90,16 @@ export const openaiTools = [
           suggestedFix: {
             type: 'object',
             description:
-              'Suggested position/size changes as key-value pairs (e.g. { "x": 10, "width": 300 })',
+              '형제 컴포넌트와 맞추기 위한 수정값. 예: { "width": 163 } (형제와 동일한 너비), { "height": 200 } (형제와 동일한 높이)',
+            properties: {
+              x: { type: 'number', description: '목표 X 좌표 (px)' },
+              y: { type: 'number', description: '목표 Y 좌표 (px)' },
+              width: { type: 'number', description: '목표 너비 (px) — 형제 컴포넌트와 동일하게' },
+              height: { type: 'number', description: '목표 높이 (px) — 형제 컴포넌트와 동일하게' },
+            },
           },
         },
-        required: ['type', 'severity', 'message', 'affectedComponents'],
+        required: ['type', 'severity', 'message', 'affectedComponents', 'suggestedFix'],
       },
     },
   },

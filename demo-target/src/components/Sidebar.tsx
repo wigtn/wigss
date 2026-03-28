@@ -21,7 +21,7 @@ export default function Sidebar() {
   return (
     <aside
       data-component="sidebar"
-      className="w-64 mt-2 bg-gray-900 rounded-2xl border border-gray-800 p-6 h-fit shrink-0"
+      className="w-72 mt-8 bg-gray-900 rounded-2xl border border-gray-800 p-6 h-fit shrink-0"
     >
       <div className="mb-8">
         <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">

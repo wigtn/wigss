@@ -116,7 +116,8 @@ export type WSClientMessage =
   | { type: 'accept_feedback'; payload: { feedbackId: string; changes: ComponentChange[] } }
   | { type: 'plan_confirmed'; payload: { planId: string } }
   | { type: 'apply'; payload: { diffs: CodeDiff[] } }
-  | { type: 'components_synced'; payload: { components: DetectedComponent[] } };
+  | { type: 'components_synced'; payload: { components: DetectedComponent[] } }
+  | { type: 'auto_fix'; payload: { feedbackId: string; message: string; affectedComponents: string[]; type: string } };
 
 export type WSServerMessage =
   | { type: 'status'; payload: { status: AgentStatus; detail?: string } }

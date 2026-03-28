@@ -1,6 +1,6 @@
 export default function Hero() {
   return (
-    <section data-component="hero" className="mb-12">
+    <section data-component="hero" className="mb-4 ml-12">
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-violet-600/20 via-gray-900 to-fuchsia-600/20 border border-gray-800 p-12">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(139,92,246,0.15),transparent_60%)]" />
         <div className="relative">
@@ -19,11 +19,11 @@ export default function Hero() {
             From brand identity to product design, we help startups and enterprises
             build interfaces that users love. Strategy-first, pixel-perfect delivery.
           </p>
-          <div className="flex items-center gap-4">
-            <button className="px-6 py-3 bg-violet-600 text-white font-medium rounded-xl hover:bg-violet-500 transition-colors">
+          <div className="flex items-center gap-2">
+            <button className="px-16 py-6 bg-violet-600 text-white font-medium rounded-xl hover:bg-violet-500 transition-colors text-xl">
               View Our Work
             </button>
-            <button className="px-[399px] py-3 border border-gray-700 text-gray-300 font-medium rounded-xl hover:border-gray-500 hover:text-white transition-colors">
+            <button className="px-3 py-1 border border-gray-700 text-gray-300 font-medium rounded-xl hover:border-gray-500 hover:text-white transition-colors text-[10px]">
               Get in Touch
             </button>
           </div>

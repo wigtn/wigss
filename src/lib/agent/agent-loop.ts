@@ -146,6 +146,40 @@ class WIGSSAgent {
             );
             break;
 
+          case 'auto_fix':
+            // Direct auto-fix: generate suggestions and apply top ones immediately
+            this.addLog('auto_fix', `Fixing: ${msg.payload?.message?.slice(0, 60)}`);
+            wsServer.send(ws, {
+              type: 'status',
+              payload: { status: 'refactoring', detail: 'AI 자동 수정 중...' },
+            });
+            try {
+              const fixes = await suggestImprovements(this.components);
+              const topFixes = fixes
+                .sort((a, b) => b.confidence - a.confidence)
+                .flatMap((s) => s.changes)
+                .slice(0, 5);
+
+              for (const change of topFixes) {
+                this.applyLocalChange(change);
+                wsServer.send(ws, {
+                  type: 'auto_modify',
+                  payload: { componentId: change.componentId, change },
+                });
+              }
+              wsServer.send(ws, {
+                type: 'chat_response',
+                payload: { message: `자동 수정 완료: ${topFixes.length}개 변경 적용됨` },
+              });
+            } catch (err) {
+              this.addLog('auto_fix_error', err instanceof Error ? err.message : String(err));
+            }
+            wsServer.send(ws, {
+              type: 'status',
+              payload: { status: 'idle' },
+            });
+            break;
+
           case 'components_synced':
             // Frontend synced postMessage-based components (pixel-accurate IDs)
             if (Array.isArray(msg.payload?.components)) {

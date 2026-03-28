@@ -127,10 +127,11 @@ export default function VisualEditor() {
         console.log('[VisualEditor] Received iframe scan:', e.data.elements.length, 'elements');
         const comps = e.data.elements.map((el: any, i: number) => {
           const attrs = el.attributes || {};
-          const dataComp = attrs['data-component'] || '';
-          // Map data-component to source file path
+          // Use own data-component, or inherit from parent
+          const dataComp = attrs['data-component'] || attrs['data-parent-component'] || '';
+          const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
           const sourceFile = dataComp
-            ? `src/components/${dataComp.charAt(0).toUpperCase() + dataComp.slice(1)}.tsx`
+            ? `src/components/${capitalize(dataComp)}.tsx`
             : '';
           return {
             id: `comp-${i}-${el.id || el.tagName}`,
@@ -139,7 +140,7 @@ export default function VisualEditor() {
             elementIds: [el.id],
             boundingBox: el.boundingBox,
             sourceFile,
-            reasoning: dataComp ? `data-component="${dataComp}" → ${sourceFile}` : 'iframe scan',
+            reasoning: sourceFile ? `→ ${sourceFile}` : 'no source mapping',
             depth: el.depth ?? 0,
           };
         });
@@ -245,14 +246,9 @@ export default function VisualEditor() {
     return areaB - areaA;
   });
 
-  // Threshold: top 15% largest components are "background" — click passes through
-  const areaThreshold = sortedComponents.length > 5
-    ? (() => {
-        const areas = sortedComponents.map(c => c.boundingBox.width * c.boundingBox.height);
-        const sorted = [...areas].sort((a, b) => b - a);
-        return sorted[Math.floor(sorted.length * 0.15)] || 0;
-      })()
-    : Infinity; // If few components, all are clickable
+  // Background threshold: only elements covering >30% of viewport area are "background"
+  const viewportArea = DESKTOP_WIDTH * Math.max(canvasHeight, 800);
+  const areaThreshold = viewportArea * 0.3;
 
   const fixedWidth = viewportMode === 'mobile' ? MOBILE_WIDTH : DESKTOP_WIDTH;
 
@@ -305,20 +301,25 @@ export default function VisualEditor() {
                     onMouseDown={(e) => {
                       if (isSelected) handleMouseDown(e, comp.id, 'drag');
                     }}
+                    className="wigss-overlay-box"
                     style={{
                       position: 'absolute',
                       left: comp.boundingBox.x,
                       top: comp.boundingBox.y,
                       width: comp.boundingBox.width,
                       height: comp.boundingBox.height,
-                      border: `${isSelected ? 2 : 1}px ${isSelected ? 'solid' : 'dashed'} ${isBackground ? colors.stroke + '40' : colors.stroke}`,
+                      border: isSelected
+                        ? `2.5px solid ${colors.stroke}`
+                        : isBackground
+                          ? `1px dashed ${colors.stroke}40`
+                          : `1px dashed ${colors.stroke}80`,
                       backgroundColor: 'transparent',
                       opacity: isBackground ? 0.3 : opacity,
                       cursor: isSelected ? (interaction?.compId === comp.id ? 'grabbing' : 'grab') : (isBackground ? 'default' : 'pointer'),
                       boxSizing: 'border-box',
                       pointerEvents: isBackground ? 'none' : 'auto',
                       zIndex: isSelected ? 9999 : idx + 1,
-                      transition: interaction ? 'none' : 'opacity 0.15s',
+                      transition: interaction ? 'none' : 'all 0.15s ease',
                     }}
                   >
                     {/* Label */}

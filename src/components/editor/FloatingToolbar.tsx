@@ -125,6 +125,10 @@ export default function FloatingToolbar() {
         clearChanges();
         setDiffs([]);
 
+        // Clear old suggestions/feedbacks (will regenerate after re-scan)
+        useAgentStore.getState().clearSuggestions();
+        useAgentStore.getState().clearFeedbacks();
+
         // Reload iframe + re-scan
         setTimeout(() => {
           const iframes = document.querySelectorAll('iframe');

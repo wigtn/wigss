@@ -34,9 +34,7 @@ export default function EditorPage() {
 
   return (
     <div className="h-screen flex bg-gray-950 relative">
-      {/* Toolbar floats OVER content — no space taken, no offset */}
       <FloatingToolbar />
-      {/* Content starts from top edge — coordinates match Playwright exactly */}
       <VisualEditor />
       <AgentPanel />
     </div>

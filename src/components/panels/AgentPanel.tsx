@@ -61,9 +61,12 @@ function FeedbackSection() {
   };
 
   const handleAskFix = (feedback: AgentFeedback) => {
-    // Ask AI to fix the issue via chat
-    sendMessage('chat', {
-      message: `피드백 "${feedback.message}"에 대해 자동으로 수정해줘. 관련 컴포넌트: ${feedback.affectedComponents.join(', ')}`,
+    // Direct auto-fix: skip chat confirmation, apply immediately
+    sendMessage('auto_fix', {
+      feedbackId: feedback.id,
+      message: feedback.message,
+      affectedComponents: feedback.affectedComponents,
+      type: feedback.type,
     });
     removeFeedback(feedback.id);
   };

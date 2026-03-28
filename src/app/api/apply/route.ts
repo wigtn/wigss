@@ -8,24 +8,28 @@ function applyDiff(content: string, diff: CodeDiff): { ok: true; content: string
   const modified = diff.modified ?? '';
 
   // Safety: reject dangerous diffs
-  // 1. Reject inline style props being added to unrelated code
-  if (modified.includes('marginRight=') || modified.includes('marginLeft=') ||
-      modified.includes('marginTop=') || modified.includes('marginBottom=')) {
-    if (!original.includes('margin')) {
-      return { ok: false, reason: `Rejected: adds inline margin to unrelated code` };
-    }
+  if (!original || !modified) {
+    return { ok: false, reason: 'Rejected: empty original or modified' };
   }
 
-  // 2. Reject if modified text looks like it breaks function/component structure
-  if (modified.includes('className=') && !original.includes('className')) {
-    return { ok: false, reason: `Rejected: adds className to non-className context` };
+  // STRICT: original must contain className="..." and modified must too
+  const origClassMatch = original.match(/className="([^"]*)"/);
+  const modClassMatch = modified.match(/className="([^"]*)"/);
+
+  if (!origClassMatch || !modClassMatch) {
+    return { ok: false, reason: 'Rejected: diff must modify a className="..." attribute' };
   }
 
-  // 3. Reject if original and modified line counts differ drastically (sign of bad diff)
-  const origLines = original.split('\n').length;
-  const modLines = modified.split('\n').length;
-  if (Math.abs(origLines - modLines) > 3) {
-    return { ok: false, reason: `Rejected: diff changes ${origLines} lines to ${modLines} lines (too many structural changes)` };
+  // STRICT: everything EXCEPT the className value must be identical
+  const origWithoutClass = original.replace(/className="[^"]*"/, 'className="__PLACEHOLDER__"');
+  const modWithoutClass = modified.replace(/className="[^"]*"/, 'className="__PLACEHOLDER__"');
+  if (origWithoutClass !== modWithoutClass) {
+    return { ok: false, reason: 'Rejected: diff changes code outside className value' };
+  }
+
+  // Line count must match
+  if (original.split('\n').length !== modified.split('\n').length) {
+    return { ok: false, reason: 'Rejected: line count changed' };
   }
 
   if (original.length > 0) {
@@ -148,29 +152,13 @@ export async function POST(req: NextRequest) {
       }
 
       if (fileAppliedCount > 0) {
-        // Basic syntax validation before writing
-        const isTsx = file.endsWith('.tsx') || file.endsWith('.jsx');
-        if (isTsx) {
-          // Check balanced braces/parens
-          const opens = (content.match(/[{(]/g) || []).length;
-          const closes = (content.match(/[})]/g) || []).length;
-          if (Math.abs(opens - closes) > 2) {
-            failed.push({ file, reason: `Syntax check failed: unbalanced brackets (${opens} opens vs ${closes} closes). Skipping write.` });
-            continue;
-          }
-          // Check for obvious broken patterns
-          if (content.includes('className="') && content.includes('\n  return (')) {
-            const classNameBeforeReturn = content.indexOf('className="');
-            const returnIdx = content.indexOf('\n  return (');
-            if (classNameBeforeReturn > 0 && classNameBeforeReturn < returnIdx) {
-              // className appearing in function params area — likely broken
-              const beforeClassName = content.slice(Math.max(0, classNameBeforeReturn - 50), classNameBeforeReturn);
-              if (beforeClassName.includes(',') && !beforeClassName.includes('{') && !beforeClassName.includes('<')) {
-                failed.push({ file, reason: `Syntax check failed: className in function params area. Skipping write.` });
-                continue;
-              }
-            }
-          }
+        // Syntax validation: compare bracket balance before and after
+        const origContent = await readSourceFile(absolutePath).catch(() => '');
+        const origBrackets = (origContent.match(/[{}()]/g) || []).length;
+        const newBrackets = (content.match(/[{}()]/g) || []).length;
+        if (Math.abs(origBrackets - newBrackets) > 0) {
+          failed.push({ file, reason: `Syntax guard: bracket count changed (${origBrackets} → ${newBrackets}). Skipping to prevent breakage.` });
+          continue;
         }
 
         await writeSourceFile(absolutePath, content);

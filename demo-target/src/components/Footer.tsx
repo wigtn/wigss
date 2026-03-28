@@ -6,7 +6,7 @@ export default function Footer() {
   return (
     <footer
       data-component="footer"
-      className="h-[200px] bg-gray-900 border-t border-gray-800 px-8 flex items-center justify-between"
+      className="h-[320px] bg-gray-900 border-t border-gray-800 px-8 flex items-center justify-between mt-20"
     >
       <div>
         <div className="flex items-center gap-2 mb-2">
