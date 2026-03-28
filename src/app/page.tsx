@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import FloatingToolbar from '@/components/editor/FloatingToolbar';
 import VisualEditor from '@/components/editor/VisualEditor';
 import AgentPanel from '@/components/panels/AgentPanel';
@@ -8,41 +8,37 @@ import { useEditorStore } from '@/stores/editor-store';
 import { useAgentStore } from '@/stores/agent-store';
 
 export default function EditorPage() {
-  const setTargetUrl = useEditorStore((s) => s.setTargetUrl);
-  const setProjectPath = useEditorStore((s) => s.setProjectPath);
-  const connect = useAgentStore((s) => s.connect);
-  const disconnect = useAgentStore((s) => s.disconnect);
+  const initialized = useRef(false);
 
   useEffect(() => {
-    // Set default target URL (demo-target)
-    setTargetUrl('http://localhost:3001');
+    // StrictMode guard: only run once
+    if (initialized.current) return;
+    initialized.current = true;
 
-    // Set project path from URL params or default
+    // Set default target URL (demo-target)
+    useEditorStore.getState().setTargetUrl('http://localhost:3001');
+
+    // Set project path from URL params
     const params = new URLSearchParams(window.location.search);
-    const projectPath = params.get('project') || process.cwd?.() || '';
-    if (projectPath) {
-      setProjectPath(projectPath);
-    }
+    // projectPath is resolved server-side from SOURCE_PATH env var.
+    // Client passes 'auto' to signal the server should use its default.
+    const projectPath = params.get('project') || 'auto';
+    useEditorStore.getState().setProjectPath(projectPath);
 
     // Connect to WebSocket server
     const wsPort = params.get('wsPort') || '4001';
-    connect(`ws://localhost:${wsPort}`);
+    useAgentStore.getState().connect(`ws://localhost:${wsPort}`);
 
-    return () => {
-      disconnect();
-    };
-  }, [setTargetUrl, setProjectPath, connect, disconnect]);
+    // No cleanup — connection persists for the app lifetime
+  }, []);
 
   return (
-    <div className="h-screen flex flex-col bg-gray-950">
-      {/* Floating toolbar: fixed, takes no layout space. Offset content with pt. */}
+    <div className="h-screen flex bg-gray-950 relative">
+      {/* Toolbar floats OVER content — no space taken, no offset */}
       <FloatingToolbar />
-
-      {/* Main content area */}
-      <div className="flex-1 flex overflow-hidden pt-10">
-        <VisualEditor />
-        <AgentPanel />
-      </div>
+      {/* Content starts from top edge — coordinates match Playwright exactly */}
+      <VisualEditor />
+      <AgentPanel />
     </div>
   );
 }

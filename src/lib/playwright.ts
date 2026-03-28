@@ -4,7 +4,7 @@ import { listSourceFiles } from './file-utils';
 
 let browser: Browser | null = null;
 
-const MAX_ELEMENTS = 200;
+const MAX_ELEMENTS = 1200;
 
 const SKIP_TAGS = new Set([
   'SCRIPT',
@@ -177,8 +177,7 @@ export async function scanPage(url: string, projectPath: string): Promise<ScanRe
           const rect = node.getBoundingClientRect();
           if (rect.width === 0 && rect.height === 0) return;
 
-          // Only collect elements with meaningful size (> 20px)
-          if (rect.width > 20 && rect.height > 10) {
+          if (rect.width > 4 && rect.height > 4) {
             count++;
             const attributes: Record<string, string> = {};
             for (let i = 0; i < node.attributes.length; i++) {

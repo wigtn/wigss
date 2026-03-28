@@ -218,10 +218,32 @@ export const useAgentStore = create<AgentState>((set, get) => ({
             }
             break;
 
-          case 'components_detected':
-            useEditorStore.getState().setComponents(payload.components ?? []);
-            get().addLog('detect', `Detected ${payload.components?.length ?? 0} components`);
+          case 'components_detected': {
+            const comps = payload.components ?? [];
+            get().addLog('detect', `Detected ${comps.length} components`);
+            // Try to get pixel-accurate coords from iframe first
+            let postMessageSent = false;
+            try {
+              const iframes = document.querySelectorAll('iframe');
+              for (const iframe of Array.from(iframes)) {
+                iframe.contentWindow?.postMessage({ type: 'wigss-scan-request' }, '*');
+                postMessageSent = true;
+              }
+            } catch { /* ignore */ }
+            // Fallback: use Playwright coords if postMessage fails (after 4s timeout)
+            if (postMessageSent) {
+              setTimeout(() => {
+                // If components are still empty after 4s, use Playwright coords as fallback
+                if (useEditorStore.getState().components.length === 0) {
+                  console.log('[AgentStore] postMessage timeout, using Playwright coords as fallback');
+                  useEditorStore.getState().setComponents(comps);
+                }
+              }, 4000);
+            } else {
+              useEditorStore.getState().setComponents(comps);
+            }
             break;
+          }
 
           case 'suggestion':
             get().addSuggestion({

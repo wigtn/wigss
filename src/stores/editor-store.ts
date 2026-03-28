@@ -63,7 +63,7 @@ const initialState = {
   canvasSnapshotIndex: -1,
   history: [],
   historyIndex: -1,
-  targetUrl: '',
+  targetUrl: 'http://localhost:3001',
   projectPath: '',
 };
 

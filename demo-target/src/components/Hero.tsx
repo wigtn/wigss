@@ -23,7 +23,7 @@ export default function Hero() {
             <button className="px-6 py-3 bg-violet-600 text-white font-medium rounded-xl hover:bg-violet-500 transition-colors">
               View Our Work
             </button>
-            <button className="px-6 py-3 border border-gray-700 text-gray-300 font-medium rounded-xl hover:border-gray-500 hover:text-white transition-colors">
+            <button className="px-[399px] py-3 border border-gray-700 text-gray-300 font-medium rounded-xl hover:border-gray-500 hover:text-white transition-colors">
               Get in Touch
             </button>
           </div>

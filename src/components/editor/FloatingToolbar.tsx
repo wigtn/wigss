@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useEditorStore } from '@/stores/editor-store';
 import { useAgentStore } from '@/stores/agent-store';
 
@@ -34,20 +35,119 @@ export default function FloatingToolbar() {
     viewportMode,
     setViewportMode,
     changes,
+    components,
+    diffs,
     canUndo,
     canRedo,
     undo,
     redo,
+    clearChanges,
+    setDiffs,
   } = useEditorStore();
 
-  const { status, connected, sendMessage } = useAgentStore();
+  const { status, connected, sendMessage, addLog } = useAgentStore();
 
   const handleScan = () => {
     sendMessage('scan', { url: targetUrl, projectPath });
   };
 
-  const handleSave = () => {
-    sendMessage('save', { changes });
+  const [saveState, setSaveState] = useState<'idle' | 'generating' | 'preview' | 'applying' | 'done' | 'error'>('idle');
+  const [saveMessage, setSaveMessage] = useState('');
+
+  const handleSave = async () => {
+    const effectivePath = projectPath || 'auto';
+
+    // Step 1: Generate diffs from changes
+    if (diffs.length === 0 && changes.length > 0) {
+      setSaveState('generating');
+      setSaveMessage(`Generating code changes from ${changes.length} edit(s)...`);
+      addLog('refactor_start', `Generating diffs from ${changes.length} change(s)`);
+
+      try {
+        const response = await fetch('/api/refactor', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ changes, components, projectPath: effectivePath }),
+        });
+        const result = await response.json() as {
+          success: boolean;
+          data?: { diffs: typeof diffs; message?: string };
+          error?: { message?: string };
+        };
+
+        if (!response.ok || !result.success || !result.data) {
+          throw new Error(result.error?.message || 'Failed to generate diffs');
+        }
+
+        if (result.data.diffs.length === 0) {
+          setSaveState('error');
+          setSaveMessage('No code changes generated. Try making bigger edits.');
+          setTimeout(() => { setSaveState('idle'); setSaveMessage(''); }, 3000);
+          return;
+        }
+
+        setDiffs(result.data.diffs);
+        setSaveState('preview');
+        setSaveMessage(`${result.data.diffs.length} file change(s) ready. Click "Apply" to save.`);
+        addLog('diff_preview', `Generated ${result.data.diffs.length} diff(s)`);
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        setSaveState('error');
+        setSaveMessage(`Error: ${msg}`);
+        addLog('refactor_error', msg);
+        setTimeout(() => { setSaveState('idle'); setSaveMessage(''); }, 4000);
+      }
+      return;
+    }
+
+    // Step 2: Apply diffs to source files
+    if (diffs.length > 0) {
+      setSaveState('applying');
+      setSaveMessage(`Applying ${diffs.length} change(s) to source code...`);
+      addLog('apply_start', `Applying ${diffs.length} diff(s)`);
+
+      try {
+        const response = await fetch('/api/apply', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ diffs, projectPath: effectivePath }),
+        });
+        const result = await response.json() as {
+          success: boolean;
+          data?: { applied: number; filesChanged: string[]; failed: { file: string; reason: string }[] };
+          error?: { message?: string };
+        };
+
+        if (!response.ok || !result.success || !result.data) {
+          throw new Error(result.error?.message || 'Failed to apply changes');
+        }
+
+        const { applied, filesChanged, failed } = result.data;
+        setSaveState('done');
+        setSaveMessage(`Saved! ${applied} change(s) applied to ${filesChanged.join(', ')}`);
+        addLog('apply_done', `Applied ${applied} diff(s) across ${filesChanged.length} file(s)`);
+
+        if (failed.length > 0) {
+          addLog('apply_partial', `${failed.length} diff(s) failed`);
+        }
+
+        clearChanges();
+        setDiffs([]);
+        setTimeout(() => { setSaveState('idle'); setSaveMessage(''); }, 5000);
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        setSaveState('error');
+        setSaveMessage(`Error: ${msg}`);
+        addLog('apply_error', msg);
+        setTimeout(() => { setSaveState('idle'); setSaveMessage(''); }, 4000);
+      }
+    }
+  };
+
+  const handleCancelDiffs = () => {
+    setDiffs([]);
+    setSaveState('idle');
+    setSaveMessage('');
   };
 
   const handleToggleViewport = () => {
@@ -57,6 +157,7 @@ export default function FloatingToolbar() {
   };
 
   return (
+    <>
     <div className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 py-2 bg-gray-900/90 backdrop-blur-md border-b border-gray-800/60">
       {/* Left: Logo */}
       <div className="flex items-center gap-3">
@@ -78,15 +179,6 @@ export default function FloatingToolbar() {
         </ToolbarButton>
 
         <ToolbarButton
-          onClick={() => {}}
-          disabled={status !== 'idle'}
-          title="Edit mode"
-        >
-          <EditIcon />
-          <span>Edit</span>
-        </ToolbarButton>
-
-        <ToolbarButton
           onClick={handleToggleViewport}
           active={viewportMode === 'mobile'}
           title={viewportMode === 'desktop' ? 'Switch to mobile view' : 'Switch to desktop view'}
@@ -97,14 +189,33 @@ export default function FloatingToolbar() {
 
         <div className="w-px h-5 bg-gray-700 mx-1" />
 
-        <ToolbarButton
-          onClick={handleSave}
-          disabled={changes.length === 0}
-          title="Save changes"
-        >
-          <SaveIcon />
-          <span>Save</span>
-        </ToolbarButton>
+        {/* Save: multi-step with visual feedback */}
+        {saveState === 'preview' ? (
+          <>
+            <ToolbarButton onClick={handleSave} title="Apply changes to source code">
+              <SaveIcon />
+              <span className="text-green-400">Apply ({diffs.length})</span>
+            </ToolbarButton>
+            <ToolbarButton onClick={handleCancelDiffs} title="Cancel">
+              <span className="text-red-400 text-xs">Cancel</span>
+            </ToolbarButton>
+          </>
+        ) : (
+          <ToolbarButton
+            onClick={handleSave}
+            disabled={(changes.length === 0 && diffs.length === 0) || saveState === 'generating' || saveState === 'applying'}
+            title={saveState === 'generating' ? 'Generating...' : saveState === 'applying' ? 'Applying...' : 'Save changes'}
+          >
+            <SaveIcon />
+            <span>
+              {saveState === 'generating' ? 'Generating...' :
+               saveState === 'applying' ? 'Applying...' :
+               saveState === 'done' ? 'Saved!' :
+               saveState === 'error' ? 'Error' :
+               `Save${changes.length > 0 ? ` (${changes.length})` : ''}`}
+            </span>
+          </ToolbarButton>
+        )}
 
         <ToolbarButton
           onClick={undo}
@@ -131,6 +242,23 @@ export default function FloatingToolbar() {
         </span>
       </div>
     </div>
+
+    {/* Save status banner */}
+    {saveMessage && (
+      <div className={`fixed top-10 left-0 right-0 z-40 px-4 py-2 text-xs text-center transition-all ${
+        saveState === 'done' ? 'bg-green-900/90 text-green-200' :
+        saveState === 'error' ? 'bg-red-900/90 text-red-200' :
+        saveState === 'preview' ? 'bg-blue-900/90 text-blue-200' :
+        'bg-gray-800/90 text-gray-300'
+      }`}>
+        {saveState === 'generating' && <span className="animate-pulse mr-2">●</span>}
+        {saveState === 'applying' && <span className="animate-pulse mr-2">●</span>}
+        {saveState === 'done' && <span className="mr-2">✓</span>}
+        {saveState === 'error' && <span className="mr-2">✗</span>}
+        {saveMessage}
+      </div>
+    )}
+    </>
   );
 }
 
@@ -183,14 +311,6 @@ function ScanIcon() {
       <path d="M21 17v2a2 2 0 0 1-2 2h-2" />
       <path d="M7 21H5a2 2 0 0 1-2-2v-2" />
       <line x1="7" y1="12" x2="17" y2="12" />
-    </svg>
-  );
-}
-
-function EditIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
     </svg>
   );
 }

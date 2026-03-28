@@ -1,470 +1,348 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { Canvas, Rect, Text as FabricText } from 'fabric';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { useEditorStore } from '@/stores/editor-store';
 import { useAgentStore } from '@/stores/agent-store';
-import type { BoundingBox, ComponentType, ComponentChange } from '@/types';
+import type { BoundingBox, ComponentType, ComponentChange, DetectedComponent } from '@/types';
 
-const TYPE_STROKE: Record<ComponentType, string> = {
-  navbar: '#22d3ee',
-  header: '#a78bfa',
-  hero: '#f59e0b',
-  grid: '#34d399',
-  card: '#2dd4bf',
-  sidebar: '#ec4899',
-  footer: '#6b7280',
-  section: '#60a5fa',
-  form: '#fb923c',
-  modal: '#ef4444',
+// ── Colors by component type ──
+const TYPE_COLORS: Record<ComponentType, { stroke: string; fill: string; label: string }> = {
+  navbar:  { stroke: '#22d3ee', fill: 'rgba(34,211,238,0.10)',  label: '#0891b2' },
+  header:  { stroke: '#a78bfa', fill: 'rgba(167,139,250,0.10)', label: '#7c3aed' },
+  hero:    { stroke: '#f59e0b', fill: 'rgba(245,158,11,0.10)',  label: '#d97706' },
+  grid:    { stroke: '#34d399', fill: 'rgba(52,211,153,0.10)',  label: '#059669' },
+  card:    { stroke: '#2dd4bf', fill: 'rgba(45,212,191,0.10)',  label: '#0d9488' },
+  sidebar: { stroke: '#ec4899', fill: 'rgba(236,72,153,0.10)',  label: '#db2777' },
+  footer:  { stroke: '#6b7280', fill: 'rgba(107,114,128,0.10)', label: '#4b5563' },
+  section: { stroke: '#60a5fa', fill: 'rgba(96,165,250,0.10)',  label: '#2563eb' },
+  form:    { stroke: '#fb923c', fill: 'rgba(251,146,60,0.10)',  label: '#ea580c' },
+  modal:   { stroke: '#ef4444', fill: 'rgba(239,68,68,0.10)',   label: '#dc2626' },
 };
 
-const TYPE_FILL: Record<ComponentType, string> = {
-  navbar: 'rgba(34, 211, 238, 0.10)',
-  header: 'rgba(167, 139, 250, 0.10)',
-  hero: 'rgba(245, 158, 11, 0.10)',
-  grid: 'rgba(52, 211, 153, 0.10)',
-  card: 'rgba(45, 212, 191, 0.10)',
-  sidebar: 'rgba(236, 72, 153, 0.10)',
-  footer: 'rgba(107, 114, 128, 0.10)',
-  section: 'rgba(96, 165, 250, 0.10)',
-  form: 'rgba(251, 146, 60, 0.10)',
-  modal: 'rgba(239, 68, 68, 0.10)',
-};
+const SELECTED = { stroke: '#60a5fa', fill: 'rgba(59,130,246,0.18)', label: '#3b82f6' };
+const MIN_IFRAME_HEIGHT = 2400;
+const DESKTOP_WIDTH = 1280;
+const MOBILE_WIDTH = 375;
 
-const TYPE_LABEL_BG: Record<ComponentType, string> = {
-  navbar: '#0891b2',
-  header: '#7c3aed',
-  hero: '#d97706',
-  grid: '#059669',
-  card: '#0d9488',
-  sidebar: '#db2777',
-  footer: '#4b5563',
-  section: '#2563eb',
-  form: '#ea580c',
-  modal: '#dc2626',
-};
-
-type RectMeta = {
-  componentId: string;
-  componentType: ComponentType;
-  label: string;
-  box: BoundingBox;
-};
-
-type EditableRect = Rect & { data?: RectMeta };
-type LabelText = FabricText & { data?: { componentId: string } };
-
-function getRectStyle(type: ComponentType, selected: boolean) {
-  if (selected) {
-    return {
-      stroke: '#60a5fa',
-      fill: 'rgba(59, 130, 246, 0.14)',
-      strokeWidth: 2,
-      labelBg: '#3b82f6',
-    };
-  }
-
-  return {
-    stroke: TYPE_STROKE[type],
-    fill: TYPE_FILL[type],
-    strokeWidth: 1,
-    labelBg: TYPE_LABEL_BG[type],
-  };
+function truncateLabel(tag: string, className: string, text: string): string {
+  const cls = typeof className === 'string' ? className.split(/\s+/).slice(0, 2).join('.') : '';
+  const base = cls ? `${tag}.${cls}` : tag;
+  return text ? `${base}: ${text.slice(0, 20)}` : base;
 }
 
-function readRectBox(rect: EditableRect): BoundingBox {
-  return {
-    x: Math.round(rect.left ?? 0),
-    y: Math.round(rect.top ?? 0),
-    width: Math.max(1, Math.round((rect.width ?? 0) * (rect.scaleX ?? 1))),
-    height: Math.max(1, Math.round((rect.height ?? 0) * (rect.scaleY ?? 1))),
-  };
+function guessComponentType(tag: string, className: string, attrs: Record<string, string>): ComponentType {
+  const t = tag.toLowerCase();
+  const c = (className || '').toLowerCase();
+  const role = (attrs?.role || '').toLowerCase();
+  if (t === 'nav' || role === 'navigation' || c.includes('nav')) return 'navbar';
+  if (t === 'header' || c.includes('header')) return 'header';
+  if (t === 'footer' || c.includes('footer')) return 'footer';
+  if (t === 'aside' || c.includes('sidebar')) return 'sidebar';
+  if (t === 'form') return 'form';
+  if (c.includes('hero')) return 'hero';
+  if (c.includes('card')) return 'card';
+  if (c.includes('grid') || c.includes('grid-cols')) return 'grid';
+  if (c.includes('modal') || c.includes('dialog')) return 'modal';
+  return 'section';
 }
 
-function getCanvasDimensions(
-  viewport: HTMLDivElement | null,
-  components: { boundingBox: BoundingBox }[],
-) {
-  const width = viewport?.clientWidth ?? 0;
-  const viewportHeight = viewport?.clientHeight ?? 0;
-  let maxBottom = 0;
+// ── Depth opacity (deeper = more transparent) ──
+function depthOpacity(depth: number): number {
+  // depth 0 = top level = full opacity, each level reduces
+  return Math.max(0.3, 1 - depth * 0.15);
+}
 
-  for (const component of components) {
-    const bottom = component.boundingBox.y + component.boundingBox.height;
-    if (bottom > maxBottom) {
-      maxBottom = bottom;
-    }
+// ── Resize handle positions ──
+const HANDLES = ['nw', 'ne', 'sw', 'se', 'n', 's', 'e', 'w'] as const;
+type HandleDir = typeof HANDLES[number];
+
+function handleCursor(dir: HandleDir): string {
+  const map: Record<HandleDir, string> = {
+    nw: 'nw-resize', ne: 'ne-resize', sw: 'sw-resize', se: 'se-resize',
+    n: 'n-resize', s: 's-resize', e: 'e-resize', w: 'w-resize',
+  };
+  return map[dir];
+}
+
+function handleStyle(dir: HandleDir): React.CSSProperties {
+  const size = 8;
+  const base: React.CSSProperties = {
+    position: 'absolute', width: size, height: size,
+    backgroundColor: '#60a5fa', border: '1px solid #fff',
+    borderRadius: 1, zIndex: 2,
+  };
+  switch (dir) {
+    case 'nw': return { ...base, top: -4, left: -4, cursor: 'nw-resize' };
+    case 'ne': return { ...base, top: -4, right: -4, cursor: 'ne-resize' };
+    case 'sw': return { ...base, bottom: -4, left: -4, cursor: 'sw-resize' };
+    case 'se': return { ...base, bottom: -4, right: -4, cursor: 'se-resize' };
+    case 'n':  return { ...base, top: -4, left: '50%', marginLeft: -4, cursor: 'n-resize' };
+    case 's':  return { ...base, bottom: -4, left: '50%', marginLeft: -4, cursor: 's-resize' };
+    case 'e':  return { ...base, top: '50%', right: -4, marginTop: -4, cursor: 'e-resize' };
+    case 'w':  return { ...base, top: '50%', left: -4, marginTop: -4, cursor: 'w-resize' };
   }
-
-  const height = Math.max(viewportHeight, maxBottom + 80);
-  return { width, height };
 }
 
 export default function VisualEditor() {
   const targetUrl = useEditorStore((s) => s.targetUrl);
   const components = useEditorStore((s) => s.components);
   const selectedComponentId = useEditorStore((s) => s.selectedComponentId);
-  const selectComponent = useEditorStore((s) => s.selectComponent);
   const viewportMode = useEditorStore((s) => s.viewportMode);
-  const applyChange = useEditorStore((s) => s.applyChange);
-  const pushCanvasSnapshot = useEditorStore((s) => s.pushCanvasSnapshot);
-  const sendMessage = useAgentStore((s) => s.sendMessage);
 
+  const [canvasHeight, setCanvasHeight] = useState(MIN_IFRAME_HEIGHT);
+  const pageHeightRef = useRef(MIN_IFRAME_HEIGHT);
   const viewportRef = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const fabricCanvasRef = useRef<Canvas | null>(null);
-  const rectMapRef = useRef<Map<string, EditableRect>>(new Map());
-  const labelMapRef = useRef<Map<string, LabelText>>(new Map());
-  const componentsRef = useRef(components);
-  const resizeCanvasRef = useRef<(() => void) | null>(null);
-  const [canvasHeight, setCanvasHeight] = useState(0);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
 
+  // Stable store refs
+  const applyChangeRef = useRef(useEditorStore.getState().applyChange);
+  const selectRef = useRef(useEditorStore.getState().selectComponent);
+  const sendRef = useRef(useAgentStore.getState().sendMessage);
+
+  useEffect(() => useEditorStore.subscribe((s) => {
+    applyChangeRef.current = s.applyChange;
+    selectRef.current = s.selectComponent;
+  }), []);
+  useEffect(() => useAgentStore.subscribe((s) => {
+    sendRef.current = s.sendMessage;
+  }), []);
+
+  // ── Drag / Resize state ──
+  const [interaction, setInteraction] = useState<{
+    compId: string;
+    mode: 'drag' | HandleDir;
+    startMouse: { x: number; y: number };
+    startBox: BoundingBox;
+  } | null>(null);
+
+  // PostMessage: receive iframe scan results + page height
   useEffect(() => {
-    componentsRef.current = components;
-    resizeCanvasRef.current?.();
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type === 'wigss-page-height' && typeof e.data.height === 'number') {
+        pageHeightRef.current = Math.max(e.data.height, MIN_IFRAME_HEIGHT);
+        setCanvasHeight((prev) => Math.max(prev, pageHeightRef.current));
+      }
+      if (e.data?.type === 'wigss-scan-result' && Array.isArray(e.data.elements)) {
+        console.log('[VisualEditor] Received iframe scan:', e.data.elements.length, 'elements');
+        const comps = e.data.elements.map((el: any, i: number) => ({
+          id: `comp-${i}-${el.id || el.tagName}`,
+          name: truncateLabel(el.tagName, el.className, el.textContent),
+          type: guessComponentType(el.tagName, el.className, el.attributes || {}),
+          elementIds: [el.id],
+          boundingBox: el.boundingBox,
+          sourceFile: '',
+          reasoning: 'iframe postMessage (pixel-accurate)',
+          depth: el.depth ?? 0,
+        }));
+        useEditorStore.getState().setComponents(comps);
+        // Sync to server so suggestions use correct component IDs
+        sendRef.current('components_synced', { components: comps });
+        if (e.data.viewport?.height) {
+          pageHeightRef.current = Math.max(e.data.viewport.height, MIN_IFRAME_HEIGHT);
+          setCanvasHeight((prev) => Math.max(prev, pageHeightRef.current));
+        }
+      }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, []);
+
+  // ── Mouse handlers for drag/resize ──
+  const handleMouseDown = useCallback((
+    e: React.MouseEvent, compId: string, mode: 'drag' | HandleDir
+  ) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const comp = components.find((c) => c.id === compId);
+    if (!comp) return;
+    selectRef.current(compId);
+    setInteraction({
+      compId,
+      mode,
+      startMouse: { x: e.clientX, y: e.clientY },
+      startBox: { ...comp.boundingBox },
+    });
   }, [components]);
 
   useEffect(() => {
-    if (!canvasRef.current) return;
+    if (!interaction) return;
 
-    const canvas = new Canvas(canvasRef.current, {
-      selection: false,
-      preserveObjectStacking: true,
-    });
-    fabricCanvasRef.current = canvas;
+    const calcNewBox = (e: MouseEvent): BoundingBox => {
+      const dx = e.clientX - interaction.startMouse.x;
+      const dy = e.clientY - interaction.startMouse.y;
+      const sb = interaction.startBox;
 
-    const resize = () => {
-      const { width, height } = getCanvasDimensions(
-        viewportRef.current,
-        componentsRef.current,
+      if (interaction.mode === 'drag') {
+        return { x: sb.x + dx, y: sb.y + dy, width: sb.width, height: sb.height };
+      }
+      let { x, y, width: w, height: h } = sb;
+      const dir = interaction.mode;
+      if (dir.includes('e')) w = Math.max(20, sb.width + dx);
+      if (dir.includes('w')) { w = Math.max(20, sb.width - dx); x = sb.x + dx; }
+      if (dir.includes('s')) h = Math.max(20, sb.height + dy);
+      if (dir.includes('n')) { h = Math.max(20, sb.height - dy); y = sb.y + dy; }
+      return { x, y, width: w, height: h };
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      // Visual update only — don't add to changes array (too noisy)
+      const newBox = calcNewBox(e);
+      const store = useEditorStore.getState();
+      const updated = store.components.map((c) =>
+        c.id === interaction.compId ? { ...c, boundingBox: newBox } : c
       );
-      if (width <= 0 || height <= 0) return;
-      setCanvasHeight(height);
-      canvas.setDimensions({ width, height });
-      canvas.requestRenderAll();
-    };
-    resizeCanvasRef.current = resize;
-
-    const updateLabelPosition = (rect: EditableRect) => {
-      const label = labelMapRef.current.get(rect.data?.componentId ?? '');
-      if (!label) return;
-      label.set({
-        left: (rect.left ?? 0) + 4,
-        top: Math.max(0, (rect.top ?? 0) - 16),
-      });
+      useEditorStore.setState({ components: updated });
     };
 
-    const normalizeRect = (rect: EditableRect, box: BoundingBox) => {
-      rect.set({
-        left: box.x,
-        top: box.y,
-        width: box.width,
-        height: box.height,
-        scaleX: 1,
-        scaleY: 1,
-      });
-    };
+    const handleMouseUp = (e: MouseEvent) => {
+      const newBox = calcNewBox(e);
+      const sb = interaction.startBox;
+      const moved = sb.x !== newBox.x || sb.y !== newBox.y;
+      const resized = sb.width !== newBox.width || sb.height !== newBox.height;
 
-    const onObjectMoving = (event: any) => {
-      const rect = event?.target as EditableRect | undefined;
-      if (!rect?.data) return;
-      updateLabelPosition(rect);
-      canvas.requestRenderAll();
-    };
+      if (moved || resized) {
+        // Record ONE change (not per-frame)
+        const change: ComponentChange = {
+          componentId: interaction.compId,
+          type: resized ? 'resize' : 'move',
+          from: sb,
+          to: newBox,
+        };
+        applyChangeRef.current(change);
 
-    const onObjectScaling = (event: any) => {
-      const rect = event?.target as EditableRect | undefined;
-      if (!rect?.data) return;
-      updateLabelPosition(rect);
-      canvas.requestRenderAll();
-    };
-
-    const onObjectModified = (event: any) => {
-      const rect = event?.target as EditableRect | undefined;
-      if (!rect?.data) return;
-
-      const previous = rect.data.box;
-      const next = readRectBox(rect);
-      normalizeRect(rect, next);
-      updateLabelPosition(rect);
-
-      const moved = previous.x !== next.x || previous.y !== next.y;
-      const resized = previous.width !== next.width || previous.height !== next.height;
-      if (!moved && !resized) {
-        canvas.requestRenderAll();
-        return;
-      }
-
-      const change: ComponentChange = {
-        componentId: rect.data.componentId,
-        type: resized ? 'resize' : 'move',
-        from: {
-          x: previous.x,
-          y: previous.y,
-          width: previous.width,
-          height: previous.height,
-        },
-        to: {
-          x: next.x,
-          y: next.y,
-          width: next.width,
-          height: next.height,
-        },
-      };
-
-      applyChange(change);
-
-      if (moved) {
-        sendMessage('drag_end', {
-          componentId: rect.data.componentId,
-          from: previous,
-          to: next,
+        // Notify AI agent
+        const msgType = resized ? 'resize_end' : 'drag_end';
+        sendRef.current(msgType, {
+          componentId: interaction.compId,
+          from: sb,
+          to: newBox,
         });
       }
-
-      if (resized) {
-        sendMessage('resize_end', {
-          componentId: rect.data.componentId,
-          from: previous,
-          to: next,
-        });
-      }
-
-      rect.data = { ...rect.data, box: next };
-      pushCanvasSnapshot(canvas.toJSON());
-      canvas.requestRenderAll();
+      setInteraction(null);
     };
 
-    const onSelectionCreated = (event: any) => {
-      const selected = (event?.selected?.[0] ?? null) as EditableRect | null;
-      selectComponent(selected?.data?.componentId ?? null);
-    };
-
-    const onSelectionUpdated = (event: any) => {
-      const selected = (event?.selected?.[0] ?? null) as EditableRect | null;
-      selectComponent(selected?.data?.componentId ?? null);
-    };
-
-    const onSelectionCleared = () => {
-      selectComponent(null);
-    };
-
-    canvas.on('object:moving', onObjectMoving);
-    canvas.on('object:scaling', onObjectScaling);
-    canvas.on('object:modified', onObjectModified);
-    canvas.on('selection:created', onSelectionCreated);
-    canvas.on('selection:updated', onSelectionUpdated);
-    canvas.on('selection:cleared', onSelectionCleared);
-
-    const observer = new ResizeObserver(resize);
-    if (viewportRef.current) {
-      observer.observe(viewportRef.current);
-    }
-    resize();
-
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
     return () => {
-      observer.disconnect();
-      canvas.off('object:moving', onObjectMoving);
-      canvas.off('object:scaling', onObjectScaling);
-      canvas.off('object:modified', onObjectModified);
-      canvas.off('selection:created', onSelectionCreated);
-      canvas.off('selection:updated', onSelectionUpdated);
-      canvas.off('selection:cleared', onSelectionCleared);
-      canvas.dispose();
-      fabricCanvasRef.current = null;
-      resizeCanvasRef.current = null;
-      rectMapRef.current.clear();
-      labelMapRef.current.clear();
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [applyChange, pushCanvasSnapshot, selectComponent, sendMessage]);
+  }, [interaction]);
 
-  useEffect(() => {
-    const canvas = fabricCanvasRef.current;
-    if (!canvas) return;
+  // ── Sort by area: largest first (background), smallest last (on top, clickable) ──
+  const sortedComponents = [...components].sort((a, b) => {
+    const areaA = a.boundingBox.width * a.boundingBox.height;
+    const areaB = b.boundingBox.width * b.boundingBox.height;
+    return areaB - areaA; // big boxes behind, small boxes on top
+  });
 
-    let needsInitialRender = false;
-
-    for (const component of components) {
-      if (rectMapRef.current.has(component.id)) continue;
-
-      needsInitialRender = true;
-      const style = getRectStyle(component.type, component.id === selectedComponentId);
-      const rect = new Rect({
-        left: component.boundingBox.x,
-        top: component.boundingBox.y,
-        width: component.boundingBox.width,
-        height: component.boundingBox.height,
-        fill: style.fill,
-        stroke: style.stroke,
-        strokeWidth: style.strokeWidth,
-        strokeDashArray: [6, 4],
-        lockRotation: true,
-        hasRotatingPoint: false,
-        cornerColor: '#60a5fa',
-        cornerStrokeColor: '#ffffff',
-        borderColor: '#60a5fa',
-        transparentCorners: false,
-      }) as EditableRect;
-
-      rect.data = {
-        componentId: component.id,
-        componentType: component.type,
-        label: component.name,
-        box: { ...component.boundingBox },
-      };
-
-      const label = new FabricText(component.name, {
-        left: component.boundingBox.x + 4,
-        top: Math.max(0, component.boundingBox.y - 16),
-        fontSize: 10,
-        fill: '#ffffff',
-        backgroundColor: style.labelBg,
-        selectable: false,
-        evented: false,
-      }) as LabelText;
-      label.data = { componentId: component.id };
-
-      rectMapRef.current.set(component.id, rect);
-      labelMapRef.current.set(component.id, label);
-      canvas.add(rect);
-      canvas.add(label);
-    }
-
-    for (const [id, rect] of Array.from(rectMapRef.current.entries())) {
-      if (!components.find((c) => c.id === id)) {
-        needsInitialRender = true;
-        canvas.remove(rect);
-        rectMapRef.current.delete(id);
-        
-        const label = labelMapRef.current.get(id);
-        if (label) {
-          canvas.remove(label);
-          labelMapRef.current.delete(id);
-        }
-      }
-    }
-
-    if (needsInitialRender) {
-      pushCanvasSnapshot(canvas.toJSON());
-      canvas.requestRenderAll();
-    }
-    resizeCanvasRef.current?.();
-  }, [components, pushCanvasSnapshot]);
-
-  useEffect(() => {
-    const canvas = fabricCanvasRef.current;
-    if (!canvas) return;
-
-    let needsRender = false;
-
-    for (const component of components) {
-      const rect = rectMapRef.current.get(component.id);
-      const label = labelMapRef.current.get(component.id);
-      if (!rect || !label) continue;
-
-      const style = getRectStyle(component.type, component.id === selectedComponentId);
-      if (rect.fill !== style.fill || rect.stroke !== style.stroke) {
-        rect.set({
-          stroke: style.stroke,
-          fill: style.fill,
-          strokeWidth: style.strokeWidth,
-        });
-        label.set({ backgroundColor: style.labelBg });
-        needsRender = true;
-      }
-
-      const box = component.boundingBox;
-      const currentBox = rect.data?.box;
-      
-      if (currentBox && (
-        box.x !== currentBox.x || 
-        box.y !== currentBox.y || 
-        box.width !== currentBox.width || 
-        box.height !== currentBox.height
-      )) {
-        rect.set({
-          left: box.x,
-          top: box.y,
-          width: box.width,
-          height: box.height,
-          scaleX: 1,
-          scaleY: 1,
-        });
-        
-        label.set({
-          left: box.x + 4,
-          top: Math.max(0, box.y - 16),
-        });
-
-        rect.data = { ...rect.data!, box: { ...box } };
-        needsRender = true;
-      }
-    }
-
-    if (!selectedComponentId) {
-      if (canvas.getActiveObject()) {
-        canvas.discardActiveObject();
-        needsRender = true;
-      }
-    } else {
-      const activeRect = rectMapRef.current.get(selectedComponentId);
-      if (activeRect && canvas.getActiveObject() !== activeRect) {
-        canvas.setActiveObject(activeRect);
-        needsRender = true;
-      }
-    }
-
-    if (needsRender) {
-      canvas.requestRenderAll();
-    }
-    resizeCanvasRef.current?.();
-  }, [components, selectedComponentId]);
-
-  const iframeWidth = viewportMode === 'mobile' ? 375 : '100%';
+  const fixedWidth = viewportMode === 'mobile' ? MOBILE_WIDTH : DESKTOP_WIDTH;
 
   return (
-    <div className="relative flex-1 bg-gray-950 overflow-hidden flex items-start justify-center">
+    <div
+      className="relative flex-1 bg-gray-950 overflow-hidden flex items-start justify-center"
+      onClick={() => selectRef.current(null)}
+    >
       <div
         ref={viewportRef}
-        className="relative h-full overflow-y-auto overflow-x-hidden transition-all duration-300 ease-out"
-        style={{
-          width: typeof iframeWidth === 'number' ? iframeWidth : undefined,
-          maxWidth: typeof iframeWidth === 'string' ? iframeWidth : undefined,
-          flex: typeof iframeWidth === 'string' ? 1 : undefined,
-        }}
+        className="relative h-full overflow-auto"
       >
         {targetUrl ? (
           <div
-            className="relative w-full min-h-full"
-            style={{ height: canvasHeight > 0 ? canvasHeight : undefined }}
+            className="relative min-h-full"
+            style={{ width: fixedWidth, height: canvasHeight > 0 ? canvasHeight : undefined }}
           >
+            {/* Background: actual page */}
             <iframe
+              ref={iframeRef}
               src={targetUrl}
-              className="w-full border-0 bg-white"
-              style={{ height: canvasHeight > 0 ? canvasHeight : '100%', pointerEvents: 'none' }}
+              className="border-0 bg-white"
+              style={{ width: fixedWidth, height: canvasHeight > 0 ? canvasHeight : '100%', pointerEvents: 'none' }}
               title="Target page preview"
             />
-            <canvas
-              ref={canvasRef}
-              className="absolute inset-0 w-full"
-              style={{ pointerEvents: 'auto' }}
-            />
+
+            {/* Overlay: draggable/resizable component boxes */}
+            <div
+              ref={overlayRef}
+              className="absolute inset-0"
+              style={{ zIndex: 10 }}
+            >
+              {sortedComponents.map((comp, idx) => {
+                const isSelected = comp.id === selectedComponentId;
+                const depth = comp.depth ?? 0;
+                const colors = isSelected ? SELECTED : (TYPE_COLORS[comp.type] || TYPE_COLORS.section);
+                const opacity = depthOpacity(depth);
+
+                return (
+                  <div
+                    key={comp.id}
+                    onClick={(e) => { e.stopPropagation(); selectRef.current(comp.id); }}
+                    onMouseDown={(e) => {
+                      if (isSelected) handleMouseDown(e, comp.id, 'drag');
+                    }}
+                    style={{
+                      position: 'absolute',
+                      left: comp.boundingBox.x,
+                      top: comp.boundingBox.y,
+                      width: comp.boundingBox.width,
+                      height: comp.boundingBox.height,
+                      border: `${isSelected ? 2 : 1}px ${isSelected ? 'solid' : 'dashed'} ${colors.stroke}`,
+                      backgroundColor: 'transparent',
+                      opacity,
+                      cursor: isSelected ? (interaction?.compId === comp.id ? 'grabbing' : 'grab') : 'pointer',
+                      boxSizing: 'border-box',
+                      pointerEvents: 'auto',
+                      zIndex: isSelected ? 9999 : idx + 1,
+                      transition: interaction ? 'none' : 'opacity 0.15s',
+                    }}
+                  >
+                    {/* Label */}
+                    <span style={{
+                      position: 'absolute', top: -18, left: 0,
+                      fontSize: 9, color: '#fff', backgroundColor: colors.label,
+                      padding: '1px 4px', whiteSpace: 'nowrap',
+                      borderRadius: '2px 2px 0 0', opacity: 0.9,
+                      maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis',
+                    }}>
+                      {depth > 0 && <span style={{ opacity: 0.6 }}>{'·'.repeat(depth)} </span>}
+                      {comp.name}
+                    </span>
+
+                    {/* Depth badge */}
+                    {depth > 0 && (
+                      <span style={{
+                        position: 'absolute', top: 2, right: 2,
+                        fontSize: 8, color: '#fff', backgroundColor: 'rgba(0,0,0,0.5)',
+                        padding: '0 3px', borderRadius: 2, lineHeight: '14px',
+                      }}>
+                        L{depth}
+                      </span>
+                    )}
+
+                    {/* Resize handles (only for selected) */}
+                    {isSelected && HANDLES.map((dir) => (
+                      <div
+                        key={dir}
+                        onMouseDown={(e) => handleMouseDown(e, comp.id, dir)}
+                        style={handleStyle(dir)}
+                      />
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         ) : (
           <div className="flex items-center justify-center h-full text-gray-600">
             <div className="text-center">
-              <div className="text-4xl mb-3 opacity-40">
-                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="mx-auto text-gray-600">
-                  <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
-                  <line x1="8" y1="21" x2="16" y2="21" />
-                  <line x1="12" y1="17" x2="12" y2="21" />
-                </svg>
-              </div>
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="mx-auto text-gray-600 mb-3 opacity-40">
+                <rect x="2" y="3" width="20" height="14" rx="2" />
+                <line x1="8" y1="21" x2="16" y2="21" />
+                <line x1="12" y1="17" x2="12" y2="21" />
+              </svg>
               <p className="text-sm text-gray-500">No target URL configured</p>
-              <p className="text-xs text-gray-600 mt-1">
-                Click Scan to analyze a page
-              </p>
+              <p className="text-xs text-gray-600 mt-1">Click Scan to analyze a page</p>
             </div>
           </div>
         )}

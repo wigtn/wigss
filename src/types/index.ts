@@ -20,6 +20,7 @@ export interface DetectedComponent {
   sourceFile: string;
   reasoning: string;
   children?: DetectedComponent[];
+  depth?: number;
 }
 
 // === Change Types ===
@@ -114,7 +115,8 @@ export type WSClientMessage =
   | { type: 'accept_suggestion'; payload: { suggestionId: string; changes: ComponentChange[] } }
   | { type: 'accept_feedback'; payload: { feedbackId: string; changes: ComponentChange[] } }
   | { type: 'plan_confirmed'; payload: { planId: string } }
-  | { type: 'apply'; payload: { diffs: CodeDiff[] } };
+  | { type: 'apply'; payload: { diffs: CodeDiff[] } }
+  | { type: 'components_synced'; payload: { components: DetectedComponent[] } };
 
 export type WSServerMessage =
   | { type: 'status'; payload: { status: AgentStatus; detail?: string } }

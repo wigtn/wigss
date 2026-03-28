@@ -12,6 +12,7 @@ import type {
   ComponentChange,
   AgentLog,
   Suggestion,
+  DOMElement,
 } from '@/types';
 import type { WebSocket as WS } from 'ws';
 import demoScanResult from '@/data/demo-scan-result.json';
@@ -32,6 +33,18 @@ class WIGSSAgent {
   private logs: AgentLog[] = [];
   private projectPath: string = '';
   private isProcessing: boolean = false;
+
+  private applyLocalChange(change: ComponentChange): void {
+    this.components = this.components.map((component) => {
+      if (component.id !== change.componentId) return component;
+      const next = { ...component.boundingBox };
+      if (change.to.x !== undefined) next.x = change.to.x;
+      if (change.to.y !== undefined) next.y = change.to.y;
+      if (change.to.width !== undefined) next.width = change.to.width;
+      if (change.to.height !== undefined) next.height = change.to.height;
+      return { ...component, boundingBox: next };
+    });
+  }
 
   /**
    * Start the agent loop. Registers message handlers on the WebSocket server.
@@ -131,7 +144,42 @@ class WIGSSAgent {
               'mobile_view',
               `targetWidth=${msg.payload.targetWidth}`
             );
-            // Mobile view changes are handled by the frontend canvas.
+            break;
+
+          case 'components_synced':
+            // Frontend synced postMessage-based components (pixel-accurate IDs)
+            if (Array.isArray(msg.payload?.components)) {
+              this.components = msg.payload.components;
+              this.addLog('components_synced', `${this.components.length} components synced from iframe`);
+
+              // Now generate suggestions with correct component IDs
+              wsServer.send(ws, {
+                type: 'status',
+                payload: { status: 'suggesting', detail: '개선안 생성 중...' },
+              });
+              try {
+                const sgs = await suggestImprovements(this.components);
+                this.addLog('suggestions_generated', `${sgs.length} suggestions`);
+                for (const s of sgs) {
+                  wsServer.send(ws, {
+                    type: 'suggestion',
+                    payload: {
+                      id: s.id,
+                      title: s.title,
+                      description: s.description,
+                      changes: s.changes,
+                      confidence: s.confidence,
+                    },
+                  });
+                }
+              } catch (sugErr) {
+                this.addLog('suggest_error', sugErr instanceof Error ? sugErr.message : String(sugErr));
+              }
+              wsServer.send(ws, {
+                type: 'status',
+                payload: { status: 'idle', detail: '스캔 및 분석 완료.' },
+              });
+            }
             break;
 
           default:
@@ -155,6 +203,32 @@ class WIGSSAgent {
   // Scan Handler
   // -----------------------------------------------------------------------
 
+  private mapElementsToEditableComponents(elements: DOMElement[]): DetectedComponent[] {
+    return elements.map((element, index) => {
+      const rawId = element.id || `el-${index + 1}`;
+      const safeId = String(rawId).replace(/[^a-zA-Z0-9_-]/g, '-');
+      const className = typeof element.className === 'string'
+        ? element.className.trim().split(/\s+/).slice(0, 2).join('.')
+        : '';
+      const labelBase = className
+        ? `${element.tagName}.${className}`
+        : element.tagName;
+      const label = element.textContent
+        ? `${labelBase}: ${element.textContent.slice(0, 20)}`
+        : labelBase;
+
+      return {
+        id: `comp-el-${safeId}-${index + 1}`,
+        name: label,
+        type: 'section',
+        elementIds: [rawId],
+        boundingBox: element.boundingBox,
+        sourceFile: '',
+        reasoning: 'Scanned from visible DOM element for direct canvas editing',
+      };
+    });
+  }
+
   private async handleScan(
     payload: { url: string; projectPath: string },
     ws: WS
@@ -177,66 +251,69 @@ class WIGSSAgent {
       });
       this.addLog('scan_start', payload.url);
 
-      const effectiveProjectPath = payload.projectPath || this.projectPath;
+      // Resolve project path: 'auto' or empty → use server default
+      let effectiveProjectPath = this.projectPath;
+      if (payload.projectPath && payload.projectPath !== 'auto') {
+        effectiveProjectPath = payload.projectPath;
+      }
+      // Auto-detect demo-target subdirectory
+      if (payload.url.includes('localhost:3001')) {
+        const path = await import('path');
+        const demoPath = path.join(effectiveProjectPath, 'demo-target');
+        try {
+          const fs = await import('fs/promises');
+          await fs.access(demoPath);
+          effectiveProjectPath = demoPath;
+        } catch { /* not demo setup */ }
+      }
       const scanResult = await scanPage(payload.url, effectiveProjectPath);
       this.addLog(
         'scan_complete',
         `${scanResult.elements.length} elements found`
       );
 
-      // Step 2: Detect components
+      // Step 2: Build editable overlays from all visible scanned elements
+      const allEditableComponents = this.mapElementsToEditableComponents(scanResult.elements);
+      this.components = allEditableComponents;
+      this.addLog(
+        'overlay_components_built',
+        `${allEditableComponents.length} editable overlays from visible elements`
+      );
+
       wsServer.send(ws, {
         type: 'status',
         payload: {
           status: 'detecting',
-          detail: `Analyzing ${scanResult.elements.length} DOM elements...`,
+          detail: `Converting ${scanResult.elements.length} visible elements into draggable overlays...`,
         },
       });
-
-      this.components = await detectComponents(
-        scanResult.elements,
-        scanResult.sourceFiles
-      );
-      this.addLog(
-        'detection_complete',
-        `${this.components.length} components detected`
-      );
 
       wsServer.send(ws, {
         type: 'components_detected',
         payload: { components: this.components },
       });
 
-      // Step 3: Auto-chain suggest improvements
-      wsServer.send(ws, {
-        type: 'status',
-        payload: { status: 'suggesting', detail: 'Generating improvement suggestions...' },
-      });
-
-      const suggestions: Suggestion[] = await suggestImprovements(
-        this.components
-      );
-      this.addLog(
-        'suggestions_generated',
-        `${suggestions.length} suggestions`
-      );
-
-      for (const s of suggestions) {
-        wsServer.send(ws, {
-          type: 'suggestion',
-          payload: {
-            id: s.id,
-            title: s.title,
-            description: s.description,
-            changes: s.changes,
-            confidence: s.confidence,
-          },
-        });
+      // Step 3: Detect high-level semantic components for suggestions/feedback quality
+      let semanticComponents: DetectedComponent[] = [];
+      try {
+        semanticComponents = await detectComponents(
+          scanResult.elements,
+          scanResult.sourceFiles
+        );
+        this.addLog(
+          'detection_complete',
+          `${semanticComponents.length} semantic components detected`
+        );
+      } catch (detectErr) {
+        const detectMsg = detectErr instanceof Error ? detectErr.message : String(detectErr);
+        this.addLog('detection_error', detectMsg);
       }
 
+      // Suggestions will be generated after components_synced arrives
+      // (when iframe postMessage updates the component list with correct IDs)
       wsServer.send(ws, {
         type: 'status',
-        payload: { status: 'idle', detail: 'Scan complete.' },
+        payload: { status: 'idle', detail: 'Scan complete. Waiting for overlay sync...' },
       });
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
@@ -398,11 +475,6 @@ class WIGSSAgent {
     ws: WS
   ): Promise<void> {
     this.addLog('plan_confirmed', `planId=${payload.planId}`);
-
-    // When a plan is confirmed, we would execute the planned changes.
-    // For now, send a status update acknowledging confirmation.
-    // The actual refactoring (file modifications) will use the Claude API
-    // and the /api/apply REST endpoint for safety.
     wsServer.send(ws, {
       type: 'status',
       payload: {
@@ -410,19 +482,61 @@ class WIGSSAgent {
         detail: `Executing plan ${payload.planId}...`,
       },
     });
+    try {
+      const suggestions = await suggestImprovements(this.components);
+      const autoChanges = suggestions
+        .sort((a, b) => b.confidence - a.confidence)
+        .flatMap((suggestion) => suggestion.changes)
+        .slice(0, 8);
 
-    // TODO: Integrate Claude API for code refactoring in a future iteration.
-    // This would:
-    // 1. Read source files for affected components
-    // 2. Send to Claude with tool_use for code modifications
-    // 3. Generate CodeDiff[] for preview
-    // 4. Send diff_preview to client
+      if (autoChanges.length === 0) {
+        wsServer.send(ws, {
+          type: 'chat_response',
+          payload: {
+            message: '실행 가능한 자동 수정안을 찾지 못했습니다. 조금 더 구체적으로 지시해 주세요.',
+          },
+        });
+        wsServer.send(ws, {
+          type: 'status',
+          payload: { status: 'idle', detail: 'No actionable auto-modify changes found.' },
+        });
+        return;
+      }
+
+      for (const change of autoChanges) {
+        this.applyLocalChange(change);
+        wsServer.send(ws, {
+          type: 'auto_modify',
+          payload: {
+            componentId: change.componentId,
+            change,
+          },
+        });
+        this.addLog('auto_modify_emit', `${change.type} ${change.componentId}`);
+      }
+
+      wsServer.send(ws, {
+        type: 'chat_response',
+        payload: {
+          message: `확인된 계획을 실행했습니다. ${autoChanges.length}개 자동 수정을 적용했어요.`,
+        },
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.addLog('plan_execute_error', errorMessage);
+      wsServer.send(ws, {
+        type: 'chat_response',
+        payload: {
+          message: `계획 실행 중 오류가 발생했습니다: ${errorMessage}`,
+        },
+      });
+    }
 
     wsServer.send(ws, {
       type: 'status',
       payload: {
         status: 'idle',
-        detail: 'Plan acknowledged. Refactoring integration pending.',
+        detail: `Plan ${payload.planId} execution finished.`,
       },
     });
   }

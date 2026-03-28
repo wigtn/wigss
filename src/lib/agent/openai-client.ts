@@ -64,56 +64,55 @@ async function withRetry<T>(
 // System Prompts
 // ---------------------------------------------------------------------------
 
-const DETECT_SYSTEM_PROMPT = `You are a UI component detection agent for WIGSS (Style Shaper).
-Your job is to analyze DOM elements from a web page and identify distinct UI components.
+const DETECT_SYSTEM_PROMPT = `당신은 WIGSS (Style Shaper)의 UI 컴포넌트 감지 에이전트입니다.
+웹 페이지의 DOM 요소를 분석하여 독립적인 UI 컴포넌트를 식별합니다.
 
-Rules:
-- Group related DOM elements into logical UI components (navbar, header, hero, grid, card, sidebar, footer, section, form, modal).
-- Each component must have a descriptive name, a type, the element IDs it contains, and a brief reasoning.
-- If you can infer the source file from element IDs, class names, or data attributes, include sourceFile.
-- Do NOT create overlapping components - each element should belong to at most one component.
-- Focus on top-level layout components first, then identify nested ones like individual cards within a grid.
-- Call identify_component for EACH component you detect.`;
+규칙:
+- 관련된 DOM 요소를 논리적 UI 컴포넌트로 그룹화 (navbar, header, hero, grid, card, sidebar, footer, section, form, modal)
+- 각 컴포넌트는 설명적 이름, 타입, 포함된 요소 ID, 판단 근거(reasoning)를 포함
+- 요소 ID, 클래스명, data 속성에서 소스 파일을 추론할 수 있으면 sourceFile에 포함
+- 겹치는 컴포넌트를 만들지 않음 — 각 요소는 최대 하나의 컴포넌트에만 속함
+- 최상위 레이아웃 컴포넌트를 먼저 식별하고, 그 안의 카드 등 중첩 컴포넌트를 식별
+- 감지한 각 컴포넌트마다 identify_component를 호출`;
 
-const SUGGEST_SYSTEM_PROMPT = `You are a UI design improvement agent for WIGSS (Style Shaper).
-Analyze the given UI components and suggest design improvements.
+const SUGGEST_SYSTEM_PROMPT = `당신은 WIGSS (Style Shaper)의 UI 디자인 개선 에이전트입니다.
+주어진 UI 컴포넌트를 분석하고 디자인 개선안을 제안합니다. 반드시 한국어로 응답하세요.
 
-Focus on:
-1. Spacing consistency - Are gaps between components uniform?
-2. Alignment - Are components properly aligned (top, left, center)?
-3. Sizing - Are similar components (e.g. cards) the same size?
-4. Visual hierarchy - Is the layout well-structured?
-5. Responsive concerns - Would this layout work on different screens?
+분석 항목:
+1. 간격 일관성 — 컴포넌트 간 간격이 균일한가? (예: "카드 간격이 16px, 24px로 불균일합니다")
+2. 정렬 — 컴포넌트가 제대로 정렬되어 있는가? (예: "사이드바가 8px 어긋나 있습니다")
+3. 크기 — 유사 컴포넌트(카드 등)의 크기가 동일한가? (예: "카드 높이가 200px, 180px로 차이납니다")
+4. 시각적 계층 — 레이아웃 구조가 잘 되어 있는가?
+5. 반응형 — 다양한 화면에서 작동하는가?
 
-Call suggest_improvement for each improvement you recommend.
-Include a confidence score (0-100) based on how certain you are the change would improve the design.`;
+각 개선안마다 suggest_improvement를 호출하세요.
+확신도(0-100)를 포함하세요. 구체적인 px 값을 포함해서 설명하세요.`;
 
-const FEEDBACK_SYSTEM_PROMPT = `You are a real-time layout feedback agent for WIGSS (Style Shaper).
-A user has just moved or resized a UI component. Analyze the change and provide feedback if there are issues.
+const FEEDBACK_SYSTEM_PROMPT = `당신은 WIGSS (Style Shaper)의 실시간 레이아웃 피드백 에이전트입니다.
+사용자가 UI 컴포넌트를 방금 이동하거나 크기를 변경했습니다. 변경을 분석하고 문제가 있으면 피드백을 제공합니다.
+반드시 한국어로 응답하세요. 구체적인 px 값을 포함해서 설명하세요.
 
-Check for:
-1. sizing - Component became too small or inconsistent with siblings
-2. spacing - Gaps between components became uneven
-3. alignment - Component no longer aligns with related components
-4. min_size - Component is below minimum usable size
-5. viewport - Component extends outside the visible viewport
-6. overlap - Component overlaps with another component
+검사 항목:
+1. sizing — 컴포넌트가 너무 작아졌거나 형제 컴포넌트와 크기가 맞지 않음 (예: "Card 1이 140px인데 Card 2,3은 200px입니다. 60px 차이납니다")
+2. spacing — 컴포넌트 간 간격이 불균일해짐
+3. alignment — 관련 컴포넌트와 정렬이 맞지 않음 (예: "사이드바 상단이 카드 그리드보다 8px 아래입니다")
+4. min_size — 컴포넌트가 최소 사용 가능 크기 이하
+5. viewport — 컴포넌트가 화면 밖으로 나감
+6. overlap — 컴포넌트가 다른 컴포넌트와 겹침
 
-Only call provide_feedback if there is a genuine issue. If the change looks fine, respond with a simple confirmation message.
-Be concise and actionable in your feedback.`;
+실제 문제가 있을 때만 provide_feedback을 호출하세요. 문제가 없으면 간단한 확인 메시지만 응답하세요.`;
 
-const CHAT_SYSTEM_PROMPT = `You are an AI design assistant for WIGSS (Style Shaper), a visual code refactoring tool.
-You can see the current UI components and their layout. Help the user with design questions and suggestions.
+const CHAT_SYSTEM_PROMPT = `당신은 WIGSS (Style Shaper)의 AI 디자인 어시스턴트입니다.
+현재 UI 컴포넌트와 레이아웃을 볼 수 있습니다. 사용자의 디자인 질문과 제안을 도와주세요.
+반드시 한국어로 응답하세요.
 
-Modes of interaction:
-1. Opinion request - User asks for your opinion. Provide analysis and suggestions.
-2. Delegation ("알아서 해줘", "fix it", "make it better") - Propose a concrete plan with steps, and ask for confirmation.
-3. Instruction ("move X to Y", "make it bigger") - Acknowledge and describe what you would do.
+상호작용 모드:
+1. 의견 요청 — 분석 + 제안 제공 (예: "푸터 높이가 200px인데, 콘텐츠 대비 과도합니다. 120px로 줄이면 좋겠습니다")
+2. 위임 ("알아서 해줘", "정리해줘") — 구체적인 수정 계획을 제안하고 확인 요청
+3. 지시 ("카드를 2열로 바꿔", "이거 옮겨") — 인정하고 무엇을 할지 설명
 
-When proposing a plan, include a planId (unique string) and an array of step descriptions.
-When suggesting changes, include specific component IDs and change values.
-
-Respond in the same language the user uses (Korean or English).`;
+계획 제안 시 planId(고유 문자열)와 단계 설명 배열을 포함하세요.
+변경 제안 시 구체적인 컴포넌트 ID와 px 값을 포함하세요.`;
 
 // ---------------------------------------------------------------------------
 // Helper: compute bounding box from child elements
@@ -170,30 +169,48 @@ export async function detectComponents(
   sourceFiles: string[]
 ): Promise<DetectedComponent[]> {
   // Flatten elements to a simplified representation for the prompt
-  const simplifiedElements = flattenElements(elements).map((el) => ({
+  // Limit to top 40 elements by size (largest first = most significant layout elements)
+  const flattened = flattenElements(elements);
+  const sorted = [...flattened].sort((a, b) => {
+    const areaA = a.boundingBox.width * a.boundingBox.height;
+    const areaB = b.boundingBox.width * b.boundingBox.height;
+    return areaB - areaA;
+  });
+  const topElements = sorted.slice(0, 40);
+
+  const simplifiedElements = topElements.map((el) => ({
     id: el.id,
     tag: el.tagName,
     className:
       typeof el.className === 'string'
-        ? el.className.slice(0, 200)
+        ? el.className.split(/\s+/).slice(0, 5).join(' ')
         : '',
-    text: el.textContent.slice(0, 60),
+    text: el.textContent.slice(0, 40),
     box: el.boundingBox,
-    attrs: el.attributes,
   }));
 
-  const userMessage = `Here are the DOM elements from the scanned page:
+  // Limit source files to relevant ones only (max 30)
+  const relevantSourceFiles = sourceFiles
+    .filter((f) =>
+      f.endsWith('.tsx') || f.endsWith('.jsx') || f.endsWith('.css')
+    )
+    .filter((f) =>
+      f.includes('component') || f.includes('page') || f.includes('layout') ||
+      f.includes('app/') || f.includes('src/')
+    )
+    .slice(0, 30);
+
+  const userMessage = `Here are the top ${simplifiedElements.length} DOM elements from the scanned page (sorted by size):
 
 \`\`\`json
 ${JSON.stringify(simplifiedElements, null, 2)}
 \`\`\`
 
-Available source files in the project:
-${sourceFiles.map((f) => `- ${f}`).join('\n')}
+Available source files:
+${relevantSourceFiles.map((f) => `- ${f}`).join('\n')}
 
 Analyze these elements and call identify_component for each distinct UI component you detect.
-Group related elements together. Identify the component type, name, and which elements belong to it.
-If possible, match components to source files based on naming conventions.`;
+Group related elements together. Identify the component type, name, and which elements belong to it.`;
 
   const response = await withRetry(
     () => openai.chat.completions.create({
