@@ -141,6 +141,7 @@ function SuggestionsSection() {
   const removeSuggestion = useAgentStore((s) => s.removeSuggestion);
   const applyChange = useEditorStore((s) => s.applyChange);
   const sendMessage = useAgentStore((s) => s.sendMessage);
+  const hoverComponent = useEditorStore((s) => s.hoverComponent);
   const [hoveredSugId, setHoveredSugId] = useState<string | null>(null);
 
   if (suggestions.length === 0) return null;
@@ -159,8 +160,6 @@ function SuggestionsSection() {
   const handleIgnore = (id: string) => {
     removeSuggestion(id);
   };
-
-  const hoverComponent = useEditorStore((s) => s.hoverComponent);
 
   const handleHoverEnter = (sug: Suggestion) => {
     setHoveredSugId(sug.id);
