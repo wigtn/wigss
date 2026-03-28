@@ -61,6 +61,7 @@ export default function FloatingToolbar() {
     if (diffs.length === 0 && changes.length > 0) {
       setSaveState('generating');
       setSaveMessage(`${changes.length}개 변경사항으로 코드 수정 생성 중...`);
+      useAgentStore.getState().setStatus('refactoring');
       addLog('refactor_start', `Generating diffs from ${changes.length} change(s)`);
       console.log('[Save] changes:', JSON.stringify(changes, null, 2));
       console.log('[Save] components count:', components.length);
@@ -129,6 +130,8 @@ export default function FloatingToolbar() {
         useAgentStore.getState().clearSuggestions();
         useAgentStore.getState().clearFeedbacks();
 
+        useAgentStore.getState().setStatus('idle');
+
         // Reload iframe + re-scan
         setTimeout(() => {
           const iframes = document.querySelectorAll('iframe');
@@ -147,6 +150,7 @@ export default function FloatingToolbar() {
         setSaveMessage(`Error: ${msg}`);
         addLog('refactor_error', msg);
         setDiffs([]);
+        useAgentStore.getState().setStatus('idle');
         setTimeout(() => { setSaveState('idle'); setSaveMessage(''); }, 4000);
       }
       return;
