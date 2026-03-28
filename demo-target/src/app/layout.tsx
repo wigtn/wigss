@@ -34,14 +34,25 @@ export default function RootLayout({
                   var results = [];
                   var count = 0;
                   function walk(node, depth) {
-                    if (count > 500 || depth > 8) return;
+                    if (count > 200 || depth > 6) return;
                     if (!(node instanceof HTMLElement)) return;
                     var tag = node.tagName.toUpperCase();
                     if (SKIP.indexOf(tag) >= 0) return;
+                    // Skip tiny inline elements (spans inside text, etc.)
+                    if (['SPAN','A','STRONG','EM','B','I','SMALL','CODE'].indexOf(tag) >= 0 && !node.getAttribute('data-component')) {
+                      // Still recurse into children
+                      if (depth < 6) {
+                        for (var ci = 0; ci < node.children.length; ci++) {
+                          walk(node.children[ci], depth + 1);
+                        }
+                      }
+                      return;
+                    }
                     var cs = window.getComputedStyle(node);
                     if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') return;
                     var r = node.getBoundingClientRect();
-                    if (r.width < 4 || r.height < 4) return;
+                    // Minimum area: 30x20px (skip tiny decorative elements)
+                    if (r.width < 30 || r.height < 20) return;
                     count++;
                     var attrs = {};
                     ['id','class','data-component','role','href','src','alt'].forEach(function(a) {

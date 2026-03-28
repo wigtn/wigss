@@ -57,8 +57,15 @@ export default function FloatingToolbar() {
   const handleSave = async () => {
     const effectivePath = projectPath || 'auto';
 
-    // Step 1: Generate diffs from changes
-    if (diffs.length === 0 && changes.length > 0) {
+    console.log('[Save] State:', { changesCount: changes.length, diffsCount: diffs.length, saveState, componentsCount: components.length });
+
+    // Clear stale diffs from previous save
+    if (diffs.length > 0) {
+      setDiffs([]);
+    }
+
+    // Generate diffs from changes
+    if (changes.length > 0) {
       setSaveState('generating');
       setSaveMessage(`${changes.length}개 변경사항으로 코드 수정 생성 중...`);
       useAgentStore.getState().setStatus('refactoring');

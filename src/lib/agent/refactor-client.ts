@@ -52,7 +52,14 @@ export async function generateRefactorDiffs(input: {
   sources: SourceInput[];
 }): Promise<CodeDiff[]> {
   const componentMap = new Map(input.components.map((c) => [c.id, c]));
-  const changeSummary = input.changes.map((change) => {
+
+  // Deduplicate: keep only the LATEST change per component
+  const latestChanges = new Map<string, ComponentChange>();
+  for (const change of input.changes) {
+    latestChanges.set(change.componentId, change);
+  }
+
+  const changeSummary = Array.from(latestChanges.values()).map((change) => {
     const component = componentMap.get(change.componentId);
     const name = component?.name || '';
     // Extract useful info from component name (format: "tagName.class1.class2: text")
