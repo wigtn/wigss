@@ -60,8 +60,11 @@ export default function FloatingToolbar() {
     // Step 1: Generate diffs from changes
     if (diffs.length === 0 && changes.length > 0) {
       setSaveState('generating');
-      setSaveMessage(`Generating code changes from ${changes.length} edit(s)...`);
+      setSaveMessage(`${changes.length}개 변경사항으로 코드 수정 생성 중...`);
       addLog('refactor_start', `Generating diffs from ${changes.length} change(s)`);
+      console.log('[Save] changes:', JSON.stringify(changes, null, 2));
+      console.log('[Save] components count:', components.length);
+      console.log('[Save] projectPath:', effectivePath);
 
       try {
         const response = await fetch('/api/refactor', {
@@ -95,6 +98,7 @@ export default function FloatingToolbar() {
         setSaveState('error');
         setSaveMessage(`Error: ${msg}`);
         addLog('refactor_error', msg);
+        setDiffs([]);
         setTimeout(() => { setSaveState('idle'); setSaveMessage(''); }, 4000);
       }
       return;
@@ -139,6 +143,7 @@ export default function FloatingToolbar() {
         setSaveState('error');
         setSaveMessage(`Error: ${msg}`);
         addLog('apply_error', msg);
+        setDiffs([]);
         setTimeout(() => { setSaveState('idle'); setSaveMessage(''); }, 4000);
       }
     }
@@ -243,9 +248,9 @@ export default function FloatingToolbar() {
       </div>
     </div>
 
-    {/* Save status banner */}
+    {/* Save status banner — pointer-events none so it doesn't block clicks */}
     {saveMessage && (
-      <div className={`fixed top-10 left-0 right-0 z-40 px-4 py-2 text-xs text-center transition-all ${
+      <div className={`fixed top-10 left-0 right-0 z-40 px-4 py-2 text-xs text-center transition-all pointer-events-none ${
         saveState === 'done' ? 'bg-green-900/90 text-green-200' :
         saveState === 'error' ? 'bg-red-900/90 text-red-200' :
         saveState === 'preview' ? 'bg-blue-900/90 text-blue-200' :

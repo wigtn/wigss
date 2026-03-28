@@ -25,6 +25,8 @@ export async function POST(req: NextRequest) {
     const components = Array.isArray(body.components) ? body.components : [];
     let projectPath = typeof body.projectPath === 'string' ? body.projectPath : '';
 
+    console.log('[Refactor API] changes:', changes.length, 'components:', components.length, 'projectPath:', projectPath);
+
     // Resolve 'auto' to the server's SOURCE_PATH (set by CLI)
     if (!projectPath || projectPath === 'auto') {
       projectPath = process.env.SOURCE_PATH || process.cwd();
@@ -78,10 +80,13 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    console.log('[Refactor API] Resolved projectPath:', projectPath);
+    console.log('[Refactor API] Source files found:', sources.length, sources.map(s => s.path));
+
     if (sources.length === 0) {
       return NextResponse.json({
         success: true,
-        data: { diffs: [], message: 'No readable source files found for refactoring' },
+        data: { diffs: [], message: '소스 파일을 찾을 수 없습니다. 프로젝트 경로를 확인해주세요.' },
       });
     }
 
