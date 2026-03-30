@@ -4,10 +4,12 @@
 .env.local
 .env*.local
 *.bak.*
-demo-target/.next
-demo-target/node_modules
+demo-target/
 docs/
 .claude/
 .vscode/
 .idea/
 playwright-report/
+tsconfig.tsbuildinfo
+pnpm-workspace.yaml
+CLAUDE.md
