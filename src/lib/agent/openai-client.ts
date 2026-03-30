@@ -1,7 +1,6 @@
 import OpenAI from 'openai';
 import { openaiTools } from './tools';
 import {
-  DETECT_SYSTEM_PROMPT,
   SUGGEST_SYSTEM_PROMPT,
   FEEDBACK_SYSTEM_PROMPT,
   CHAT_SYSTEM_PROMPT,
@@ -11,8 +10,6 @@ import type {
   AgentFeedback,
   ComponentChange,
   Suggestion,
-  DOMElement,
-  BoundingBox,
   FeedbackType,
   FeedbackSeverity,
 } from '@/types';
@@ -64,149 +61,6 @@ async function withRetry<T>(
     }
   }
   throw new Error('Unreachable');
-}
-
-// ---------------------------------------------------------------------------
-// Helper: compute bounding box from child elements
-// ---------------------------------------------------------------------------
-
-function computeBoundingBox(
-  elementIds: string[],
-  elements: DOMElement[]
-): BoundingBox {
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
-
-  function findElements(els: DOMElement[]): void {
-    for (const el of els) {
-      if (elementIds.includes(el.id)) {
-        const bb = el.boundingBox;
-        minX = Math.min(minX, bb.x);
-        minY = Math.min(minY, bb.y);
-        maxX = Math.max(maxX, bb.x + bb.width);
-        maxY = Math.max(maxY, bb.y + bb.height);
-      }
-      if (el.children.length > 0) {
-        findElements(el.children);
-      }
-    }
-  }
-
-  findElements(elements);
-
-  // Fallback if no elements matched
-  if (minX === Infinity) {
-    return { x: 0, y: 0, width: 0, height: 0 };
-  }
-
-  return {
-    x: minX,
-    y: minY,
-    width: maxX - minX,
-    height: maxY - minY,
-  };
-}
-
-// ---------------------------------------------------------------------------
-// detectComponents
-// ---------------------------------------------------------------------------
-
-/**
- * Use GPT-4o with identify_component tool to detect UI components from DOM elements.
- */
-export async function detectComponents(
-  elements: DOMElement[],
-  sourceFiles: string[]
-): Promise<DetectedComponent[]> {
-  // Flatten elements to a simplified representation for the prompt
-  // Limit to top 40 elements by size (largest first = most significant layout elements)
-  const flattened = flattenElements(elements);
-  const sorted = [...flattened].sort((a, b) => {
-    const areaA = a.boundingBox.width * a.boundingBox.height;
-    const areaB = b.boundingBox.width * b.boundingBox.height;
-    return areaB - areaA;
-  });
-  const topElements = sorted.slice(0, 40);
-
-  const simplifiedElements = topElements.map((el) => ({
-    id: el.id,
-    tag: el.tagName,
-    className:
-      typeof el.className === 'string'
-        ? el.className.split(/\s+/).slice(0, 5).join(' ')
-        : '',
-    text: el.textContent.slice(0, 40),
-    box: el.boundingBox,
-  }));
-
-  // Limit source files to relevant ones only (max 30)
-  const relevantSourceFiles = sourceFiles
-    .filter((f) =>
-      f.endsWith('.tsx') || f.endsWith('.jsx') || f.endsWith('.css')
-    )
-    .filter((f) =>
-      f.includes('component') || f.includes('page') || f.includes('layout') ||
-      f.includes('app/') || f.includes('src/')
-    )
-    .slice(0, 30);
-
-  const userMessage = `Here are the top ${simplifiedElements.length} DOM elements from the scanned page (sorted by size):
-
-\`\`\`json
-${JSON.stringify(simplifiedElements, null, 2)}
-\`\`\`
-
-Available source files:
-${relevantSourceFiles.map((f) => `- ${f}`).join('\n')}
-
-Analyze these elements and call identify_component for each distinct UI component you detect.
-Group related elements together. Identify the component type, name, and which elements belong to it.`;
-
-  const response = await withRetry(
-    () => openai.chat.completions.create({
-      model: 'gpt-4o',
-      messages: [
-        { role: 'system', content: DETECT_SYSTEM_PROMPT },
-        { role: 'user', content: userMessage },
-      ],
-      tools: openaiTools.filter((t) => t.function.name === 'identify_component'),
-      tool_choice: 'auto',
-      temperature: 0.3,
-      max_tokens: 4096,
-    }),
-    'detectComponents'
-  );
-
-  const components: DetectedComponent[] = [];
-  const toolCalls = response.choices[0]?.message?.tool_calls || [];
-
-  for (let i = 0; i < toolCalls.length; i++) {
-    const fn = parseFunctionToolCall(toolCalls[i] as never);
-    if (!fn || fn.name !== 'identify_component') continue;
-
-    try {
-      const args = JSON.parse(fn.arguments);
-      const id = `comp-${args.type}-${i + 1}`;
-      const elementIds: string[] = args.elementIds || [];
-
-      components.push({
-        id,
-        name: args.name || `Component ${i + 1}`,
-        type: args.type,
-        elementIds,
-        boundingBox: computeBoundingBox(elementIds, elements),
-        sourceFile: args.sourceFile || '',
-        reasoning: args.reasoning || '',
-      });
-    } catch (err) {
-      console.error('[OpenAI] Failed to parse identify_component args:', err);
-    }
-  }
-
-  console.log(`[OpenAI] Detected ${components.length} components`);
-  return components;
 }
 
 // ---------------------------------------------------------------------------
@@ -548,25 +402,3 @@ ${JSON.stringify(componentContext, null, 2)}
   return result;
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/**
- * Flatten nested DOMElement tree into a flat array.
- */
-function flattenElements(elements: DOMElement[]): DOMElement[] {
-  const result: DOMElement[] = [];
-
-  function walk(els: DOMElement[]): void {
-    for (const el of els) {
-      result.push(el);
-      if (el.children.length > 0) {
-        walk(el.children);
-      }
-    }
-  }
-
-  walk(elements);
-  return result;
-}

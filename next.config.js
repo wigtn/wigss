@@ -6,9 +6,6 @@ const nextConfig = {
   webpack: (config) => {
     config.externals = [...(config.externals || []), {
       'ws': 'commonjs ws',
-      'playwright': 'commonjs playwright',
-      'chokidar': 'commonjs chokidar',
-      'canvas': 'commonjs canvas',
     }];
     return config;
   },
