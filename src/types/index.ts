@@ -22,6 +22,19 @@ export interface DetectedComponent {
   children?: DetectedComponent[];
   depth?: number;
   fullClassName?: string;
+  cssInfo?: CssStrategyInfo;
+}
+
+// === CSS Strategy Types ===
+
+export type CssStrategy = 'tailwind' | 'inline-style' | 'css-module' | 'plain-css';
+
+export interface CssStrategyInfo {
+  strategy: CssStrategy;
+  bindingName?: string;
+  stylesheetPath?: string;
+  cssClassName?: string;
+  styleExpression?: string;
 }
 
 // === Change Types ===
@@ -39,6 +52,7 @@ export interface CodeDiff {
   modified: string;
   lineNumber: number;
   explanation: string;
+  strategy?: CssStrategy;
 }
 
 // === Feedback Types ===

@@ -19,13 +19,29 @@ function applyDiff(content: string, diff: CodeDiff): { ok: true; content: string
   }
 
   // Safety: must contain className or style (CSS-only changes)
-  const hasClassName = original.includes('className');
-  const hasStyle = original.includes('style');
-  if (!hasClassName && !hasStyle) {
-    return { ok: false, reason: 'Rejected: diff must modify className or style' };
+  // For .css/.scss files, skip this check (CSS properties don't have className/style)
+  const isCssFile = diff.file.endsWith('.css') || diff.file.endsWith('.scss');
+  if (!isCssFile) {
+    const hasClassName = original.includes('className');
+    const hasStyle = original.includes('style');
+    if (!hasClassName && !hasStyle) {
+      return { ok: false, reason: 'Rejected: diff must modify className or style' };
+    }
   }
 
-  // Safety: no JS logic changes (function, const, return, import, export)
+  // Safety: no JS logic changes (skip for CSS files which don't have JS)
+  if (isCssFile) {
+    // CSS files: just verify the original exists
+    if (original.length > 0) {
+      const foundIndex = content.indexOf(original);
+      if (foundIndex !== -1) {
+        const nextContent = `${content.slice(0, foundIndex)}${modified}${content.slice(foundIndex + original.length)}`;
+        return { ok: true, content: nextContent };
+      }
+    }
+    return { ok: false, reason: `Cannot find original snippet in CSS file "${diff.file}"` };
+  }
+
   const dangerousPatterns = ['function ', 'const ', 'let ', 'var ', 'return ', 'import ', 'export ', '=>'];
   for (const pattern of dangerousPatterns) {
     const origCount = (original.match(new RegExp(pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) || []).length;
