@@ -98,8 +98,8 @@ npx wigss@latest [옵션]
 ## 동작 원리
 
 1. 포트 4000에 Next.js 에디터를 실행해 개발 서버를 iframe으로 감쌉니다
-2. Playwright가 라이브 DOM을 스캔해 컴포넌트를 소스 파일에 매핑합니다
-3. fabric.js 오버레이가 각 컴포넌트에 정렬된 드래그/리사이즈 박스를 렌더링합니다
+2. 소프트웨어 기반 DOM 스캔으로 컴포넌트를 감지하고 소스 파일에 매핑합니다
+3. 오버레이가 각 컴포넌트에 정렬된 드래그/리사이즈 박스를 렌더링합니다
 4. 드래그/리사이즈 이벤트가 WebSocket으로 AI 에이전트에 스트리밍됩니다
 5. Save 시 직접 Tailwind 클래스 매핑으로 diff를 생성하고 `fs`가 소스에 직접 적용합니다
 
@@ -150,11 +150,83 @@ npx wigss@latest [옵션]
     WebSocket (항시 연결, 이벤트 기반)
     ▼
 WIGSS Agent (Node.js)
-├── OpenAI GPT-4o  — 컴포넌트 인식, 제안, 피드백, 채팅
+├── OpenAI GPT-4o  — 제안, 피드백, 채팅
 ├── Direct Tailwind mapping — 결정론적 코드 리팩토링
-├── Playwright     — DOM 스캔 (headless Chromium)
 └── fs             — 소스 파일 읽기/쓰기 (.bak 백업 포함)
 ```
+
+### 데이터 흐름
+
+```
+[1] 스캔
+    FloatingToolbar → ws.send('scan')
+                          │
+                    ws-server.ts (origin 검증 + rate limit)
+                          │
+                    agent-loop.ts (mutex 큐잉)
+                      └─ ws.send('components_detected')
+                          │
+                    AgentStore → iframe.postMessage('wigss-scan-request')
+                          │
+                    iframe (개발 서버)
+                      └─ DOM 순회 → RawScanElement[]
+                      └─ postMessage('wigss-scan-result')
+                          │
+[2] 감지
+    VisualEditor.tsx
+      └─ component-detector.ts (순수 소프트웨어 — AI 없음)
+          ├─ 시멘틱 태그 인식 (nav, header, footer)
+          ├─ Flex/Grid 레이아웃 분석
+          ├─ 반복 형제 감지 (카드 그리드)
+          └─ fullClassName 추출 ← 리팩토링의 핵심 키
+                          │
+                    EditorStore.setComponents()
+                    ws.send('components_synced')
+                          │
+                    openai-client.ts → suggestImprovements()
+                      └─ GPT-4o (function calling)
+                      └─ ws.send('suggestion')
+
+[3] 편집 (드래그/리사이즈)
+    VisualEditor: handleMouseMove (30fps 스로틀)
+      ├─ EditorStore.setState() → 화면 업데이트
+      └─ iframe.postMessage('wigss-live-style') → 실시간 미리보기
+    handleMouseUp
+      ├─ EditorStore.applyChange() → 히스토리 기록 (최대 50)
+      └─ ws.send('drag_end' | 'resize_end')
+                          │
+                    openai-client.ts → provideFeedback()
+                      └─ GPT-4o → ws.send('feedback')
+
+[4] 저장
+    FloatingToolbar
+      ├─ POST /api/refactor {changes, components, projectPath}
+      │     └─ refactor-client.ts → directRefactor()
+      │         ├─ fullClassName 기반 줄 단위 소스 매칭
+      │         ├─ Tailwind 클래스 px↔토큰 변환 (TW_MAP)
+      │         └─ CodeDiff[] 반환 (줄 번호 포함)
+      │
+      └─ POST /api/apply {diffs, projectPath}
+            ├─ 경로 순회 공격 방지
+            ├─ diff 검증 (className/style만, JS 변경 거부)
+            ├─ .bak 백업 생성
+            └─ fs.writeFile → 소스 수정 완료
+
+[5] 리로드
+    iframe.reload() → 3초 후 자동 재스캔
+```
+
+### 의존성 맵
+
+| 레이어 | 기술 | 역할 |
+|--------|------|------|
+| 진입점 | `bin/cli.js` (commander) | CLI 파싱, 환경 설정, Next.js 기동 |
+| 초기화 | `instrumentation.ts` | 서버 부팅 시 WS 서버 + 에이전트 시작 |
+| 실시간 통신 | `ws` (포트 4001) | 양방향 이벤트 스트리밍 |
+| AI | `openai` → GPT-4o | 제안, 피드백, 채팅 (function calling) |
+| 리팩토링 | `refactor-client.ts` | 결정론적 Tailwind 매핑 (AI 없음) |
+| 상태 관리 | `zustand` (2 stores) | editor-store + agent-store |
+| 프레임워크 | `next` (App Router) | SSR + API 라우트 + 정적 페이지 |
 
 ---
 

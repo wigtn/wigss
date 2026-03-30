@@ -92,8 +92,8 @@ If no `--key` is provided and `OPENAI_API_KEY` is not set, WIGSS will **prompt i
 ## How It Works
 
 1. Runs a Next.js editor on port 4000 that wraps your dev server in an iframe
-2. Playwright scans the live DOM and maps components to their source files
-3. A fabric.js overlay renders draggable/resizable boxes aligned to each component
+2. Software-based DOM scan detects components and maps them to source files
+3. An overlay renders draggable/resizable boxes aligned to each component
 4. Drag/resize events stream over WebSocket to the AI agent
 5. On Save, direct Tailwind class mapping generates a targeted diff and `fs` applies it to source
 
@@ -144,11 +144,83 @@ Browser (localhost:4000)
     WebSocket (always connected, event-driven)
     ▼
 WIGSS Agent (Node.js)
-├── OpenAI GPT-4o  — detection, suggestions, feedback, chat
+├── OpenAI GPT-4o  — suggestions, feedback, chat
 ├── Direct Tailwind mapping — deterministic code refactoring
-├── Playwright     — DOM scanning (headless Chromium)
 └── fs             — source file read/write (with .bak backup)
 ```
+
+### Data Flow
+
+```
+[1] Scan
+    FloatingToolbar → ws.send('scan')
+                          │
+                    ws-server.ts (origin check + rate limit)
+                          │
+                    agent-loop.ts (queued via mutex)
+                      └─ ws.send('components_detected')
+                          │
+                    AgentStore → iframe.postMessage('wigss-scan-request')
+                          │
+                    iframe (your dev server)
+                      └─ DOM traversal → RawScanElement[]
+                      └─ postMessage('wigss-scan-result')
+                          │
+[2] Detect
+    VisualEditor.tsx
+      └─ component-detector.ts (pure software — no AI)
+          ├─ Semantic tagging (nav, header, footer)
+          ├─ Flex/grid layout analysis
+          ├─ Repeated sibling detection (card grids)
+          └─ fullClassName extraction ← key for refactoring
+                          │
+                    EditorStore.setComponents()
+                    ws.send('components_synced')
+                          │
+                    openai-client.ts → suggestImprovements()
+                      └─ GPT-4o (function calling)
+                      └─ ws.send('suggestion')
+
+[3] Edit (drag/resize)
+    VisualEditor: handleMouseMove (throttled ~30fps)
+      ├─ EditorStore.setState() → visual update
+      └─ iframe.postMessage('wigss-live-style') → live preview
+    handleMouseUp
+      ├─ EditorStore.applyChange() → history (max 50)
+      └─ ws.send('drag_end' | 'resize_end')
+                          │
+                    openai-client.ts → provideFeedback()
+                      └─ GPT-4o → ws.send('feedback')
+
+[4] Save
+    FloatingToolbar
+      ├─ POST /api/refactor {changes, components, projectPath}
+      │     └─ refactor-client.ts → directRefactor()
+      │         ├─ Line-based className matching via fullClassName
+      │         ├─ Tailwind class px↔token mapping (TW_MAP)
+      │         └─ Returns CodeDiff[] with line numbers
+      │
+      └─ POST /api/apply {diffs, projectPath}
+            ├─ Path traversal prevention
+            ├─ Diff validation (className/style only, no JS changes)
+            ├─ .bak backup creation
+            └─ fs.writeFile → source modified
+
+[5] Reload
+    iframe.reload() → auto re-scan after 3s
+```
+
+### Dependency Map
+
+| Layer | Technology | Role |
+|-------|-----------|------|
+| Entry | `bin/cli.js` (commander) | CLI parsing, env setup, starts Next.js |
+| Init | `instrumentation.ts` | Starts WS server + agent on boot |
+| Realtime | `ws` (port 4001) | Bidirectional event streaming |
+| AI | `openai` → GPT-4o | Suggestions, feedback, chat (function calling) |
+| Refactor | `refactor-client.ts` | Deterministic Tailwind mapping (no AI) |
+| State | `zustand` (2 stores) | editor-store + agent-store |
+| Framework | `next` (App Router) | SSR + API routes + static pages |
 
 ---
 
