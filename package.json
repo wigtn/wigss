@@ -2,7 +2,7 @@
   "name": "wigss",
   "version": "0.1.2",
   "description": "WIGSS (Style Shaper) — visual code refactoring tool with always-on AI agent",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "author": "Team WIGSS (WIGTN Crew)",
   "repository": {
     "type": "git",
@@ -15,7 +15,9 @@
     "dev": "concurrently \"next dev --port 4000\" \"pnpm --filter demo-target dev\"",
     "build": "next build",
     "start": "next start --port 4000",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "keywords": [
     "ai",
@@ -44,6 +46,7 @@
   },
   "devDependencies": {
     "eslint": "^8.57.1",
-    "eslint-config-next": "16.2.1"
+    "eslint-config-next": "16.2.1",
+    "vitest": "^4.1.2"
   }
 }

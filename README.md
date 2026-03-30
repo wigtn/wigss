@@ -6,7 +6,7 @@
 
 [![npm version](https://img.shields.io/npm/v/wigss?style=flat-square)](https://npmjs.com/package/wigss)
 [![npm downloads](https://img.shields.io/npm/dm/wigss?style=flat-square)](https://npmjs.com/package/wigss)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](./LICENSE)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=flat-square)](./LICENSE)
 
 <!-- TODO: Add terminal demo GIF here (recommended: vhs or asciinema) -->
 
@@ -232,7 +232,7 @@ Pull requests are welcome! Please open an issue first to discuss what you'd like
 
 ## License
 
-[MIT](./LICENSE) © Team WIGSS (WIGTN Crew)
+[Apache 2.0](./LICENSE) © Team WIGSS (WIGTN Crew)
 
 ---
 
