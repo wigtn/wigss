@@ -33,7 +33,7 @@ async function promptForKey() {
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   return new Promise((resolve) => {
     console.log('');
-    console.log('  WIGSS requires an OpenAI API key (GPT-4o for analysis, GPT-5.4 for refactoring).');
+    console.log('  WIGSS requires an OpenAI API key (GPT-4o for analysis and suggestions).');
     console.log('  Get one at: https://platform.openai.com/api-keys');
     console.log('');
     rl.question('  Enter your OpenAI API key: ', (answer) => {

@@ -13,7 +13,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Communication**: WebSocket (always connected, event-driven)
 - **Visual Editor**: iframe (target page) + fabric.js Canvas (object-based drag/resize)
 - **AI (observe/suggest/chat)**: OpenAI GPT-4o (Chat Completions + function calling)
-- **AI (refactor/verify)**: OpenAI GPT-5.4 (Chat Completions + function calling)
+- **AI (refactor)**: Direct Tailwind class mapping (deterministic, no LLM)
 - **DOM Scan**: Playwright (headless Chrome)
 - **File Watch**: chokidar
 - **File I/O**: Node.js fs for source code read/write
@@ -27,7 +27,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `src/components/editor/` — VisualEditor, ComponentOverlay, FloatingToolbar
 - `src/components/panels/` — AgentPanel, ChatInterface, FeedbackCards, DiffPreview
 - `src/stores/` — Zustand (editor-store + agent-store)
-- `src/lib/agent/` — Agent loop, OpenAI client, refactor client (GPT-5.4), tools
+- `src/lib/agent/` — Agent loop, OpenAI client, refactor client, tools
 - `src/lib/` — playwright, file-utils, ws-server
 
 ## Conventions
@@ -38,7 +38,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - WebSocket messages: `{ type: string, payload: any }`
 - API responses (REST): `{ success: boolean, data: {...} }` or `{ success: false, error: { code, message } }`
 - Component types: navbar, header, hero, grid, card, sidebar, footer, section, form, modal
-- AI calls: OpenAI GPT-4o for fast observe/suggest/chat, OpenAI GPT-5.4 for code refactoring/verification (single OPENAI_API_KEY)
+- AI calls: OpenAI GPT-4o for observe/suggest/chat; refactoring uses direct Tailwind class mapping (no LLM)
 - Canvas state tracked via fabric.js toJSON() snapshots
 
 ## Commands

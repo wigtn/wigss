@@ -68,6 +68,12 @@ interface AgentState {
 const MAX_RECONNECT_ATTEMPTS = 10;
 const BASE_RECONNECT_DELAY = 1000; // ms
 
+// Memory limits for unbounded arrays
+const MAX_LOGS = 500;
+const MAX_FEEDBACKS = 50;
+const MAX_SUGGESTIONS = 50;
+const MAX_CHAT_MESSAGES = 200;
+
 const initialState = {
   connected: false,
   ws: null,
@@ -96,18 +102,21 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         step: 'status_change',
         detail: `${state.status} -> ${status}`,
       };
-      return { status, logs: [...state.logs, log] };
+      const logs = [...state.logs, log];
+      return { status, logs: logs.length > MAX_LOGS ? logs.slice(-MAX_LOGS) : logs };
     }),
 
   addLog: (step, detail) =>
-    set((state) => ({
-      logs: [...state.logs, { timestamp: Date.now(), step, detail }],
-    })),
+    set((state) => {
+      const logs = [...state.logs, { timestamp: Date.now(), step, detail }];
+      return { logs: logs.length > MAX_LOGS ? logs.slice(-MAX_LOGS) : logs };
+    }),
 
   addFeedback: (feedback) =>
-    set((state) => ({
-      feedbacks: [...state.feedbacks, feedback],
-    })),
+    set((state) => {
+      const feedbacks = [...state.feedbacks, feedback];
+      return { feedbacks: feedbacks.length > MAX_FEEDBACKS ? feedbacks.slice(-MAX_FEEDBACKS) : feedbacks };
+    }),
 
   removeFeedback: (id) =>
     set((state) => ({
@@ -117,9 +126,10 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   clearFeedbacks: () => set({ feedbacks: [] }),
 
   addSuggestion: (suggestion) =>
-    set((state) => ({
-      suggestions: [...state.suggestions, suggestion],
-    })),
+    set((state) => {
+      const suggestions = [...state.suggestions, suggestion];
+      return { suggestions: suggestions.length > MAX_SUGGESTIONS ? suggestions.slice(-MAX_SUGGESTIONS) : suggestions };
+    }),
 
   removeSuggestion: (id) =>
     set((state) => ({
@@ -129,9 +139,10 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   clearSuggestions: () => set({ suggestions: [] }),
 
   addChatMessage: (message) =>
-    set((state) => ({
-      chatMessages: [...state.chatMessages, message],
-    })),
+    set((state) => {
+      const chatMessages = [...state.chatMessages, message];
+      return { chatMessages: chatMessages.length > MAX_CHAT_MESSAGES ? chatMessages.slice(-MAX_CHAT_MESSAGES) : chatMessages };
+    }),
 
   clearChat: () => set({ chatMessages: [] }),
 

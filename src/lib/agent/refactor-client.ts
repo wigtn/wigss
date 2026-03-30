@@ -47,11 +47,15 @@ function directRefactor(
   const fullClassName = (component as any).fullClassName || '';
   if (!fullClassName) return null;
 
-  // Find which source file contains this className
+  // Find which source file contains this className (line-based for precision)
   let targetSource: SourceInput | null = null;
+  let targetLineNumber = 0;
   for (const src of sources) {
-    if (src.content.includes(fullClassName)) {
+    const lines = src.content.split('\n');
+    const lineIdx = lines.findIndex(line => line.includes(`className="${fullClassName}"`));
+    if (lineIdx !== -1) {
       targetSource = src;
+      targetLineNumber = lineIdx + 1; // 1-based line number
       break;
     }
   }
@@ -185,12 +189,12 @@ function directRefactor(
       return null;
     }
 
-    console.log(`[DirectRefactor] ✓ ADD ${addedClass} to ${targetSource.path}`);
+    console.log(`[DirectRefactor] ✓ ADD ${addedClass} to ${targetSource.path}:${targetLineNumber}`);
     return {
       file: targetSource.path,
       original: originalLine,
       modified: modifiedLine,
-      lineNumber: 0,
+      lineNumber: targetLineNumber,
       explanation: explanation.join(', '),
     };
   }
@@ -211,13 +215,13 @@ function directRefactor(
     return null;
   }
 
-  console.log(`[DirectRefactor] ✓ ${targetSource.path}: ${oldClass} → ${newClass}`);
+  console.log(`[DirectRefactor] ✓ ${targetSource.path}:${targetLineNumber}: ${oldClass} → ${newClass}`);
 
   return {
     file: targetSource.path,
     original: originalLine,
     modified: modifiedLine,
-    lineNumber: 0,
+    lineNumber: targetLineNumber,
     explanation: explanation.join(', ') || `${oldClass} → ${newClass}`,
   };
 }

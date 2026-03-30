@@ -1,8 +1,13 @@
 import { WebSocketServer, WebSocket as WS } from 'ws';
+import type { IncomingMessage } from 'http';
 import type { WSClientMessage, WSServerMessage } from '@/types';
 
 type MessageHandler = (msg: WSClientMessage, ws: WS) => void;
 type ConnectionHandler = (ws: WS) => void;
+
+// Rate limiting: max messages per second per client
+const MESSAGE_RATE_LIMIT = 30;
+const ALLOWED_ORIGINS = ['http://localhost:3000', 'http://localhost:4000', 'http://localhost:4001'];
 
 class WIGSSWebSocketServer {
   private wss: WebSocketServer | null = null;
@@ -10,6 +15,7 @@ class WIGSSWebSocketServer {
   private messageHandler: MessageHandler | null = null;
   private connectionHandler: ConnectionHandler | null = null;
   private closeHandler: ConnectionHandler | null = null;
+  private rateLimitMap = new WeakMap<WS, { count: number; resetTime: number }>();
 
   /**
    * Start the WebSocket server on the given port.
@@ -23,7 +29,15 @@ class WIGSSWebSocketServer {
     this.wss = new WebSocketServer({ port });
     console.log(`[WS] WebSocket server listening on ws://localhost:${port}`);
 
-    this.wss.on('connection', (ws: WS) => {
+    this.wss.on('connection', (ws: WS, req: IncomingMessage) => {
+      // Origin validation
+      const origin = req.headers.origin;
+      if (origin && !ALLOWED_ORIGINS.includes(origin)) {
+        console.warn(`[WS] Rejected connection from origin: ${origin}`);
+        ws.close(1008, 'Origin not allowed');
+        return;
+      }
+
       this.clients.add(ws);
       console.log(`[WS] Client connected. Total clients: ${this.clients.size}`);
 
@@ -32,6 +46,19 @@ class WIGSSWebSocketServer {
       }
 
       ws.on('message', (data: Buffer | string) => {
+        // Rate limiting
+        const now = Date.now();
+        let rateInfo = this.rateLimitMap.get(ws);
+        if (!rateInfo || now > rateInfo.resetTime) {
+          rateInfo = { count: 0, resetTime: now + 1000 };
+        }
+        rateInfo.count++;
+        this.rateLimitMap.set(ws, rateInfo);
+        if (rateInfo.count > MESSAGE_RATE_LIMIT) {
+          console.warn('[WS] Rate limit exceeded, dropping message');
+          return;
+        }
+
         try {
           const raw = typeof data === 'string' ? data : data.toString('utf-8');
           const parsed = JSON.parse(raw);

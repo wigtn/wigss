@@ -101,7 +101,7 @@ npx wigss@latest [옵션]
 2. Playwright가 라이브 DOM을 스캔해 컴포넌트를 소스 파일에 매핑합니다
 3. fabric.js 오버레이가 각 컴포넌트에 정렬된 드래그/리사이즈 박스를 렌더링합니다
 4. 드래그/리사이즈 이벤트가 WebSocket으로 AI 에이전트에 스트리밍됩니다
-5. Save 시 GPT-5.4가 Tailwind diff를 생성하고 `fs`가 소스에 직접 적용합니다
+5. Save 시 직접 Tailwind 클래스 매핑으로 diff를 생성하고 `fs`가 소스에 직접 적용합니다
 
 ---
 
@@ -113,7 +113,7 @@ npx wigss@latest [옵션]
 | 2   | **디자인 제안**        | GPT-4o  | 인식 후 (신뢰도 점수 포함) |
 | 3   | **실시간 편집 피드백** | GPT-4o  | 드래그/리사이즈 후         |
 | 4   | **채팅 상담**          | GPT-4o  | 사용자 질문 또는 위임      |
-| 5   | **코드 리팩토링**      | GPT-5.4 | Save 시                    |
+| 5   | **코드 리팩토링**      | Direct Tailwind mapping | Save 시              |
 
 ### "도구"가 아닌 "에이전트"인 이유
 
@@ -129,7 +129,7 @@ npx wigss@latest [옵션]
 ## 요구 사항
 
 - Node.js 18+
-- OpenAI API 키 (GPT-5.4는 Tier 3+ 권장)
+- OpenAI API 키 (GPT-4o 분석 및 제안용)
 - 편집할 dev 서버 (React/Next.js + Tailwind 권장)
 
 ---
@@ -151,7 +151,7 @@ npx wigss@latest [옵션]
     ▼
 WIGSS Agent (Node.js)
 ├── OpenAI GPT-4o  — 컴포넌트 인식, 제안, 피드백, 채팅
-├── OpenAI GPT-5.4 — Tailwind 코드 리팩토링
+├── Direct Tailwind mapping — 결정론적 코드 리팩토링
 ├── Playwright     — DOM 스캔 (headless Chromium)
 └── fs             — 소스 파일 읽기/쓰기 (.bak 백업 포함)
 ```

@@ -1,21 +1,16 @@
 import { wsServer } from '../ws-server';
 import {
-  detectComponents,
   suggestImprovements,
   provideFeedback,
   chat,
 } from './openai-client';
-import { scanPage } from '../playwright';
 import type {
   WSClientMessage,
   DetectedComponent,
   ComponentChange,
   AgentLog,
-  Suggestion,
-  DOMElement,
 } from '@/types';
 import type { WebSocket as WS } from 'ws';
-import demoScanResult from '@/data/demo-scan-result.json';
 
 /**
  * WIGSSAgent - Main agent event loop (PRD 7.2).
@@ -32,7 +27,20 @@ class WIGSSAgent {
   private history: { role: string; content: string }[] = [];
   private logs: AgentLog[] = [];
   private projectPath: string = '';
-  private isProcessing: boolean = false;
+  private processingLock: Promise<void> = Promise.resolve();
+
+  private async withLock<T>(fn: () => Promise<T>): Promise<T> {
+    let release: () => void;
+    const next = new Promise<void>((r) => { release = r; });
+    const prev = this.processingLock;
+    this.processingLock = next;
+    await prev;
+    try {
+      return await fn();
+    } finally {
+      release!();
+    }
+  }
 
   private applyLocalChange(change: ComponentChange): void {
     this.components = this.components.map((component) => {
@@ -59,7 +67,7 @@ class WIGSSAgent {
 
         switch (msg.type) {
           case 'scan':
-            await this.handleScan(msg.payload, ws);
+            await this.withLock(() => this.handleScan(msg.payload, ws));
             break;
 
           case 'drag_end':
@@ -237,60 +245,16 @@ class WIGSSAgent {
   // Scan Handler
   // -----------------------------------------------------------------------
 
-  private mapElementsToEditableComponents(elements: DOMElement[]): DetectedComponent[] {
-    return elements.map((element, index) => {
-      const rawId = element.id || `el-${index + 1}`;
-      const safeId = String(rawId).replace(/[^a-zA-Z0-9_-]/g, '-');
-      const className = typeof element.className === 'string'
-        ? element.className.trim().split(/\s+/).slice(0, 2).join('.')
-        : '';
-      const labelBase = className
-        ? `${element.tagName}.${className}`
-        : element.tagName;
-      const label = element.textContent
-        ? `${labelBase}: ${element.textContent.slice(0, 20)}`
-        : labelBase;
-
-      return {
-        id: `comp-el-${safeId}-${index + 1}`,
-        name: label,
-        type: 'section',
-        elementIds: [rawId],
-        boundingBox: element.boundingBox,
-        sourceFile: '',
-        reasoning: 'Scanned from visible DOM element for direct canvas editing',
-      };
-    });
-  }
-
   private async handleScan(
     payload: { url: string; projectPath: string },
     ws: WS
   ): Promise<void> {
-    if (this.isProcessing) {
-      wsServer.send(ws, {
-        type: 'status',
-        payload: { status: 'idle', detail: 'Agent is busy. Please wait.' },
-      });
-      return;
-    }
-
-    this.isProcessing = true;
-
     try {
-      // Step 1: Scan the page
-      wsServer.send(ws, {
-        type: 'status',
-        payload: { status: 'scanning', detail: `Scanning ${payload.url}...` },
-      });
-      this.addLog('scan_start', payload.url);
-
-      // Resolve project path: 'auto' or empty → use server default
+      // Resolve project path for Save operations
       let effectiveProjectPath = this.projectPath;
       if (payload.projectPath && payload.projectPath !== 'auto') {
         effectiveProjectPath = payload.projectPath;
       }
-      // Auto-detect demo-target subdirectory
       if (payload.url.includes('localhost:3001')) {
         const path = await import('path');
         const demoPath = path.join(effectiveProjectPath, 'demo-target');
@@ -300,89 +264,41 @@ class WIGSSAgent {
           effectiveProjectPath = demoPath;
         } catch { /* not demo setup */ }
       }
-      const scanResult = await scanPage(payload.url, effectiveProjectPath);
-      this.addLog(
-        'scan_complete',
-        `${scanResult.elements.length} elements found`
-      );
+      this.projectPath = effectiveProjectPath;
 
-      // Step 2: Build editable overlays from all visible scanned elements
-      const allEditableComponents = this.mapElementsToEditableComponents(scanResult.elements);
-      this.components = allEditableComponents;
-      this.addLog(
-        'overlay_components_built',
-        `${allEditableComponents.length} editable overlays from visible elements`
-      );
-
+      // Software-based scan: tell frontend to trigger iframe postMessage scan
+      // No Playwright, no GPT — pure DOM extraction + software detector on frontend
       wsServer.send(ws, {
         type: 'status',
-        payload: {
-          status: 'detecting',
-          detail: `Converting ${scanResult.elements.length} visible elements into draggable overlays...`,
-        },
+        payload: { status: 'scanning', detail: 'DOM 스캔 중...' },
       });
+      this.addLog('scan_start', `${payload.url} (software scan)`);
 
+      // Send components_detected with empty array to trigger iframe scan in frontend
       wsServer.send(ws, {
         type: 'components_detected',
-        payload: { components: this.components },
+        payload: { components: [] },
       });
 
-      // Step 3: Detect high-level semantic components for suggestions/feedback quality
-      let semanticComponents: DetectedComponent[] = [];
-      try {
-        semanticComponents = await detectComponents(
-          scanResult.elements,
-          scanResult.sourceFiles
-        );
-        this.addLog(
-          'detection_complete',
-          `${semanticComponents.length} semantic components detected`
-        );
-      } catch (detectErr) {
-        const detectMsg = detectErr instanceof Error ? detectErr.message : String(detectErr);
-        this.addLog('detection_error', detectMsg);
-      }
+      // Frontend will:
+      // 1. Receive components_detected → trigger iframe postMessage scan
+      // 2. iframe returns raw DOM elements with CSS layout data
+      // 3. Frontend runs software detector → accurate components
+      // 4. Frontend sends components_synced back → server stores components
+      // 5. Server generates AI suggestions (async, optional)
 
-      // Suggestions will be generated after components_synced arrives
-      // (when iframe postMessage updates the component list with correct IDs)
       wsServer.send(ws, {
         type: 'status',
-        payload: { status: 'idle', detail: 'Scan complete. Waiting for overlay sync...' },
+        payload: { status: 'detecting', detail: '컴포넌트 감지 중...' },
       });
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
-      console.error('[Agent] Scan/detect failed, falling back to demo mode:', errorMsg);
-      this.addLog('fallback_demo', `Error: ${errorMsg} — using cached demo data`);
-
-      // Fallback: use cached demo scan result
-      const demo = demoScanResult as { components: DetectedComponent[]; suggestions: Suggestion[] };
-      this.components = demo.components || [];
-
-      wsServer.send(ws, {
-        type: 'components_detected',
-        payload: { components: this.components },
-      });
-
-      const suggestions = (demo.suggestions || []) as Suggestion[];
-      for (const s of suggestions) {
-        wsServer.send(ws, {
-          type: 'suggestion',
-          payload: {
-            id: s.id,
-            title: s.title,
-            description: s.description,
-            changes: s.changes || [],
-            confidence: s.confidence,
-          },
-        });
-      }
-
+      console.error('[Agent] Scan error:', errorMsg);
+      this.addLog('scan_error', errorMsg);
       wsServer.send(ws, {
         type: 'status',
-        payload: { status: 'idle', detail: 'Scan complete (demo mode — AI unavailable).' },
+        payload: { status: 'idle', detail: `Error: ${errorMsg}` },
       });
-    } finally {
-      this.isProcessing = false;
     }
   }
 

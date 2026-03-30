@@ -1,6 +1,6 @@
 {
   "name": "wigss",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "WIGSS (Style Shaper) — visual code refactoring tool with always-on AI agent",
   "license": "MIT",
   "author": "Team WIGSS (WIGTN Crew)",
@@ -27,7 +27,6 @@
   "license": "MIT",
   "packageManager": "pnpm@10.28.1",
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.80.0",
     "@types/fabric": "^5.3.11",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",

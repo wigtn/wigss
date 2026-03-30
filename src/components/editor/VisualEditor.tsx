@@ -1,9 +1,11 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useEditorStore } from '@/stores/editor-store';
 import { useAgentStore } from '@/stores/agent-store';
+import { useShallow } from 'zustand/react/shallow';
 import type { BoundingBox, ComponentType, ComponentChange, DetectedComponent } from '@/types';
+import { detectComponents as detectFromDOM, type RawScanElement } from '@/lib/component-detector';
 
 // ── Colors by component type ──
 const TYPE_COLORS: Record<ComponentType, { stroke: string; fill: string; label: string }> = {
@@ -23,28 +25,6 @@ const SELECTED = { stroke: '#60a5fa', fill: 'rgba(59,130,246,0.18)', label: '#3b
 const MIN_IFRAME_HEIGHT = 2400;
 const DESKTOP_WIDTH = 1280;
 const MOBILE_WIDTH = 375;
-
-function truncateLabel(tag: string, className: string, text: string): string {
-  const cls = typeof className === 'string' ? className.split(/\s+/).slice(0, 2).join('.') : '';
-  const base = cls ? `${tag}.${cls}` : tag;
-  return text ? `${base}: ${text.slice(0, 20)}` : base;
-}
-
-function guessComponentType(tag: string, className: string, attrs: Record<string, string>): ComponentType {
-  const t = tag.toLowerCase();
-  const c = (className || '').toLowerCase();
-  const role = (attrs?.role || '').toLowerCase();
-  if (t === 'nav' || role === 'navigation' || c.includes('nav')) return 'navbar';
-  if (t === 'header' || c.includes('header')) return 'header';
-  if (t === 'footer' || c.includes('footer')) return 'footer';
-  if (t === 'aside' || c.includes('sidebar')) return 'sidebar';
-  if (t === 'form') return 'form';
-  if (c.includes('hero')) return 'hero';
-  if (c.includes('card')) return 'card';
-  if (c.includes('grid') || c.includes('grid-cols')) return 'grid';
-  if (c.includes('modal') || c.includes('dialog')) return 'modal';
-  return 'section';
-}
 
 // ── Depth opacity (deeper = more transparent) ──
 function depthOpacity(depth: number): number {
@@ -84,11 +64,14 @@ function handleStyle(dir: HandleDir): React.CSSProperties {
 }
 
 export default function VisualEditor() {
-  const targetUrl = useEditorStore((s) => s.targetUrl);
-  const components = useEditorStore((s) => s.components);
-  const selectedComponentId = useEditorStore((s) => s.selectedComponentId);
-  const hoveredComponentId = useEditorStore((s) => s.hoveredComponentId);
-  const viewportMode = useEditorStore((s) => s.viewportMode);
+  const { targetUrl, components, selectedComponentId, hoveredComponentId, viewportMode } =
+    useEditorStore(useShallow((s) => ({
+      targetUrl: s.targetUrl,
+      components: s.components,
+      selectedComponentId: s.selectedComponentId,
+      hoveredComponentId: s.hoveredComponentId,
+      viewportMode: s.viewportMode,
+    })));
   const agentStatus = useAgentStore((s) => s.status);
 
   const [canvasHeight, setCanvasHeight] = useState(MIN_IFRAME_HEIGHT);
@@ -126,29 +109,13 @@ export default function VisualEditor() {
         setCanvasHeight((prev) => Math.max(prev, pageHeightRef.current));
       }
       if (e.data?.type === 'wigss-scan-result' && Array.isArray(e.data.elements)) {
-        console.log('[VisualEditor] Received iframe scan:', e.data.elements.length, 'elements');
-        const comps = e.data.elements.map((el: any, i: number) => {
-          const attrs = el.attributes || {};
-          // Use own data-component, or inherit from parent
-          const dataComp = attrs['data-component'] || attrs['data-parent-component'] || '';
-          const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-          const sourceFile = dataComp
-            ? `src/components/${capitalize(dataComp)}.tsx`
-            : '';
-          return {
-            id: `comp-${i}-${el.id || el.tagName}`,
-            name: truncateLabel(el.tagName, el.className, el.textContent),
-            type: guessComponentType(el.tagName, el.className, attrs),
-            elementIds: [el.id],
-            boundingBox: el.boundingBox,
-            sourceFile,
-            reasoning: sourceFile ? `→ ${sourceFile}` : 'no source mapping',
-            depth: el.depth ?? 0,
-            fullClassName: typeof el.className === 'string' ? el.className : '',
-          };
-        });
+        console.log('[VisualEditor] Received iframe scan:', e.data.elements.length, 'raw elements');
+        // Pure software detection — no AI dependency
+        const rawElements: RawScanElement[] = e.data.elements;
+        const comps = detectFromDOM(rawElements);
+        console.log('[VisualEditor] Detected', comps.length, 'components (software)');
         useEditorStore.getState().setComponents(comps);
-        // Sync to server so suggestions use correct component IDs
+        // Sync to server for suggestions (optional, async)
         sendRef.current('components_synced', { components: comps });
         if (e.data.viewport?.height) {
           pageHeightRef.current = Math.max(e.data.viewport.height, MIN_IFRAME_HEIGHT);
@@ -197,7 +164,14 @@ export default function VisualEditor() {
       return { x, y, width: w, height: h };
     };
 
+    let lastMoveTime = 0;
+    const THROTTLE_MS = 33; // ~30fps
+
     const handleMouseMove = (e: MouseEvent) => {
+      const now = performance.now();
+      if (now - lastMoveTime < THROTTLE_MS) return;
+      lastMoveTime = now;
+
       const newBox = calcNewBox(e);
       const store = useEditorStore.getState();
       const updated = store.components.map((c) =>
@@ -268,11 +242,14 @@ export default function VisualEditor() {
   }, [interaction]);
 
   // ── Sort: biggest area first (background, low z), smallest last (foreground, high z) ──
-  const sortedComponents = [...components].sort((a, b) => {
-    const areaA = a.boundingBox.width * a.boundingBox.height;
-    const areaB = b.boundingBox.width * b.boundingBox.height;
-    return areaB - areaA;
-  });
+  const sortedComponents = useMemo(() =>
+    [...components].sort((a, b) => {
+      const areaA = a.boundingBox.width * a.boundingBox.height;
+      const areaB = b.boundingBox.width * b.boundingBox.height;
+      return areaB - areaA;
+    }),
+    [components]
+  );
 
   // Background threshold: elements covering >60% of viewport get subtle styling but remain clickable
   const viewportArea = DESKTOP_WIDTH * Math.max(canvasHeight, 800);

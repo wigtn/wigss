@@ -95,7 +95,7 @@ If no `--key` is provided and `OPENAI_API_KEY` is not set, WIGSS will **prompt i
 2. Playwright scans the live DOM and maps components to their source files
 3. A fabric.js overlay renders draggable/resizable boxes aligned to each component
 4. Drag/resize events stream over WebSocket to the AI agent
-5. On Save, GPT-5.4 generates a targeted Tailwind diff and `fs` applies it directly to source
+5. On Save, direct Tailwind class mapping generates a targeted diff and `fs` applies it to source
 
 ---
 
@@ -107,7 +107,7 @@ If no `--key` is provided and `OPENAI_API_KEY` is not set, WIGSS will **prompt i
 | 2   | **Design Suggestions**  | GPT-4o  | After detection (with confidence scores) |
 | 3   | **Real-time Feedback**  | GPT-4o  | After drag/resize                        |
 | 4   | **Chat Consultation**   | GPT-4o  | User question or delegation              |
-| 5   | **Code Refactoring**    | GPT-5.4 | On Save                                  |
+| 5   | **Code Refactoring**    | Direct Tailwind mapping | On Save                    |
 
 ### Why "Agent" Not "Tool"
 
@@ -123,7 +123,7 @@ If no `--key` is provided and `OPENAI_API_KEY` is not set, WIGSS will **prompt i
 ## Requirements
 
 - Node.js 18+
-- OpenAI API key (Tier 3+ recommended for GPT-5.4 access)
+- OpenAI API key (for GPT-4o analysis and suggestions)
 - A running dev server (React/Next.js + Tailwind recommended)
 
 ---
@@ -145,7 +145,7 @@ Browser (localhost:4000)
     ▼
 WIGSS Agent (Node.js)
 ├── OpenAI GPT-4o  — detection, suggestions, feedback, chat
-├── OpenAI GPT-5.4 — Tailwind code refactoring
+├── Direct Tailwind mapping — deterministic code refactoring
 ├── Playwright     — DOM scanning (headless Chromium)
 └── fs             — source file read/write (with .bak backup)
 ```

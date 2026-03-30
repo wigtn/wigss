@@ -53,6 +53,10 @@ interface EditorState {
   reset: () => void;
 }
 
+// Memory limits for unbounded arrays
+const MAX_HISTORY = 50;
+const MAX_CANVAS_SNAPSHOTS = 20;
+
 const initialState = {
   scanResult: null,
   components: [],
@@ -121,7 +125,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
       // Truncate any redo history beyond current index, then push new entry
       const truncatedHistory = state.history.slice(0, state.historyIndex + 1);
-      const newHistory = [...truncatedHistory, [change]];
+      let newHistory = [...truncatedHistory, [change]];
+      // Cap history to prevent unbounded growth
+      if (newHistory.length > MAX_HISTORY) {
+        newHistory = newHistory.slice(-MAX_HISTORY);
+      }
       const newHistoryIndex = newHistory.length - 1;
 
       return {
@@ -155,7 +163,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
       // Truncate redo history and push new entry
       const truncatedHistory = state.history.slice(0, state.historyIndex + 1);
-      const newHistory = [...truncatedHistory, [change]];
+      let newHistory = [...truncatedHistory, [change]];
+      // Cap history to prevent unbounded growth
+      if (newHistory.length > MAX_HISTORY) {
+        newHistory = newHistory.slice(-MAX_HISTORY);
+      }
       const newHistoryIndex = newHistory.length - 1;
 
       return {
@@ -173,7 +185,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         0,
         state.canvasSnapshotIndex + 1,
       );
-      const newSnapshots = [...truncated, snapshot];
+      let newSnapshots = [...truncated, snapshot];
+      // Cap snapshots to prevent unbounded growth (fabric.js objects are large)
+      if (newSnapshots.length > MAX_CANVAS_SNAPSHOTS) {
+        newSnapshots = newSnapshots.slice(-MAX_CANVAS_SNAPSHOTS);
+      }
 
       return {
         canvasSnapshots: newSnapshots,

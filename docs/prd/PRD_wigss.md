@@ -2,7 +2,7 @@
 
 > **Version**: 5.2
 > **Created**: 2026-03-26
-> **Updated**: 2026-03-27 (OpenAI 듀얼 모델 전환: GPT-4o + GPT-5.4)
+> **Updated**: 2026-03-27 (GPT-4o + direct Tailwind mapping)
 > **Status**: Final
 > **Hackathon**: 2026-03-28 (Trae.ai 주관, 주제: "에이전트")
 > **Team**: Team WIGSS (WIGTN Crew)
@@ -43,8 +43,8 @@ npx wigss --port 3000     ← 이 한 줄이면 끝
 5. 개발자가 웹 꾸미기처럼 직접 만진다 (또는 제안 수락)
 6. 편집할 때마다 에이전트가 **실시간 피드백** ("8px 어긋남", "너무 작음" 등)
 7. **아이디어가 막히면 채팅으로 에이전트에게 물어본다** ("푸터는 어떻게 하지?")
-8. **저장하면 GPT-5.4가 기존 소스코드를 자동 리팩토링**
-9. **GPT-5.4가 결과를 스스로 검증, 안 맞으면 스스로 재수정** (최대 3회)
+8. **저장하면 direct Tailwind mapping으로 기존 소스코드를 자동 리팩토링**
+9. **Playwright가 결과를 검증, 안 맞으면 자동 재수정** (최대 3회)
 
 > 별도 앱을 여는 게 아니라, **내 페이지에 편집 기능이 씌워진 느낌.**
 
@@ -56,8 +56,8 @@ npx wigss --port 3000     ← 이 한 줄이면 끝
 - AI가 DOM 분석하여 **컴포넌트 단위로 자동 인식/분리**
 - 편집할 때마다 **실시간 피드백** (크기/간격/정렬 검토)
 - **채팅 인터페이스**로 에이전트와 대화 (의견 요청, 위임, 지시)
-- 저장하면 **기존 소스코드를 GPT-5.4가 자동 리팩토링**
-- 리팩토링 후 **자기 검증 + 자동 재수정** 루프
+- 저장하면 **direct Tailwind mapping으로 기존 소스코드를 자동 리팩토링**
+- 리팩토링 후 **Playwright 검증 + 자동 재수정** 루프
 
 ### 1.5 Non-Goals (Out of Scope)
 
@@ -75,7 +75,7 @@ npx wigss --port 3000     ← 이 한 줄이면 끝
 | WebSocket 기반 항시 에이전트 | 5초마다 폴링 방식 |
 | iframe + fabric.js Canvas 시각적 편집기 | 3D/애니메이션 편집 |
 | 채팅 인터페이스 (의견 요청/위임/지시) | 음성 인터페이스 |
-| OpenAI 듀얼 모델 (GPT-4o + GPT-5.4) | 단일 모델 |
+| GPT-4o + direct Tailwind mapping | 단일 모델 |
 | 기존 소스코드 리팩토링 | 새 프로젝트 생성 |
 | React/Next.js + Tailwind 지원 | Vue/Angular (향후) |
 | npm 패키지 배포 (`npx`) | 유료 결제 |
@@ -100,7 +100,7 @@ npx wigss --port 3000     ← 이 한 줄이면 끝
 2. 디자인 개선 제안     → 능동적으로 "간격 불균일" 감지 → 제안
 3. 실시간 편집 피드백   → 드래그 끝나면 "8px 어긋남, 카드가 너무 작음" 즉시 검토
 4. 채팅 상담           → "푸터 어떻게 하지?" → 분석 + 제안 / "알아서 해줘" → 자율 수정
-5. 코드 리팩토링 + 검증 → 저장 시 GPT-5.4가 소스 수정 → 자기 검증 → 자동 재수정
+5. 코드 리팩토링 + 검증 → 저장 시 direct Tailwind mapping으로 소스 수정 → Playwright 검증 → 자동 재수정
 ```
 
 ### 차별화 키워드
@@ -108,10 +108,10 @@ npx wigss --port 3000     ← 이 한 줄이면 끝
 | 키워드 | 설명 |
 |--------|------|
 | **항시 떠있는 에이전트** | "WebSocket으로 항시 연결, 이벤트마다 즉시 반응" |
-| **OpenAI 듀얼 모델** | "GPT-4o가 관찰/제안, GPT-5.4가 코드 수정. 단일 API로 각 모델의 강점 활용" |
+| **GPT-4o + Direct Tailwind mapping** | "GPT-4o가 관찰/제안, direct Tailwind mapping이 코드 수정. LLM 없이 정확한 클래스 변환" |
 | **실시간 피드백** | "드래그할 때마다 에이전트가 검토 의견을 줍니다" |
 | **채팅 + 직접 조작** | "만지다가 막히면 물어보고, 위임도 가능" |
-| **자기 검증** | "리팩토링 후 스스로 검증, 안 맞으면 스스로 재수정" |
+| **자기 검증** | "리팩토링 후 Playwright로 검증, 안 맞으면 자동 재수정" |
 
 ---
 
@@ -174,7 +174,7 @@ Scenario: 채팅으로 위임 ("알아서 해줘")
 Scenario: 소스코드 리팩토링 + 자기 검증
   Given 사용자가 편집을 완료했다
   When [저장]을 클릭한다
-  Then GPT-5.4가 변경 delta를 분석하여 소스코드 diff를 생성한다
+  Then direct Tailwind mapping이 변경 delta를 분석하여 소스코드 diff를 생성한다
   And diff 미리보기가 표시된다
   When [적용]을 클릭한다
   Then 소스 파일이 수정된다
@@ -233,12 +233,12 @@ Scenario: 반응형 자동 변환
 | FR-071 | 반응형 결과를 사용자가 추가 조정 가능 | P1 | FR-070 |
 | **소스코드 리팩토링** |
 | FR-080 | 소스 경로 자동 감지 (cwd 기반) | P0 | FR-001 |
-| FR-081 | **[저장] → fabric.js toJSON() delta → GPT-5.4가 소스코드 diff 생성** | P0 | FR-080 |
+| FR-081 | **[저장] → fabric.js toJSON() delta → direct Tailwind mapping으로 소스코드 diff 생성** | P0 | FR-080 |
 | FR-082 | diff 미리보기 (before/after + 설명) | P0 | FR-081 |
 | FR-083 | [적용] → 소스 파일 수정 + 백업 | P0 | FR-082 |
 | **자기 검증** |
 | FR-090 | **적용 후 자동: Playwright 재렌더링 → 편집 의도와 비교** | P0 | FR-083 |
-| FR-091 | 불일치 → GPT-5.4가 자동 재수정 (최대 3회 루프) | P0 | FR-090 |
+| FR-091 | 불일치 → Playwright 재검증 후 자동 재수정 (최대 3회 루프) | P0 | FR-090 |
 | **에이전트 UX** |
 | FR-100 | Agent Panel: 실시간 피드백 + 채팅 + 에이전트 로그 통합 | P0 | FR-010 |
 | FR-101 | 에이전트 상태 표시 (관찰 중 / 분석 중 / 제안 중 / 리팩토링 중 / 검증 중) | P0 | FR-010 |
@@ -336,7 +336,7 @@ Scenario: 반응형 자동 변환
 │  │                                                              │ │
 │  │  이벤트 발생 시:                                              │ │
 │  │  ├── 관찰/인식/제안/피드백/채팅 → OpenAI GPT-4o              │ │
-│  │  └── 코드 리팩토링/검증 수정   → OpenAI GPT-5.4               │ │
+│  │  └── 코드 리팩토링            → Direct Tailwind mapping        │ │
 │  │                                                              │ │
 │  └──────────────────────────────────────────────────────────────┘ │
 │                                                                   │
@@ -360,9 +360,9 @@ Scenario: 반응형 자동 변환
 | 채팅 입력 | 사용자 | 의견/위임/지시 처리 | GPT-4o |
 | 제안 [적용] | 사용자 | **없음** (프론트엔드 즉시 적용) | - |
 | 모바일 보기 | 사용자 | 반응형 변환 | GPT-4o |
-| 저장 클릭 | 사용자 | 코드 리팩토링 | **GPT-5.4** |
-| 적용 완료 | 내부 자동 | 자기 검증 | Playwright + **GPT-5.4** |
-| 검증 실패 | 내부 자동 | 자동 재수정 (최대 3회) | **GPT-5.4** |
+| 저장 클릭 | 사용자 | 코드 리팩토링 | **Direct Tailwind mapping** |
+| 적용 완료 | 내부 자동 | 자기 검증 | **Playwright** |
+| 검증 실패 | 내부 자동 | 자동 재수정 (최대 3회) | **Direct Tailwind mapping** |
 | 소스 파일 변경 | chokidar | 알림만 ("다시 스캔?" — AI 호출 안 함) | - |
 
 **핵심**: AI를 안 부르는 순간이 더 많다. 이벤트 발생 시에만 호출.
@@ -406,7 +406,7 @@ Scenario: 반응형 자동 변환
 | Styling | Tailwind CSS | UI 스타일링 |
 | WebSocket | ws (npm) | 서버측 WebSocket |
 | AI (관찰/제안/채팅) | OpenAI GPT-4o | Chat Completions + function calling |
-| AI (리팩토링/검증) | OpenAI GPT-5.4 | Chat Completions + function calling |
+| AI (리팩토링) | Direct Tailwind mapping | LLM 없이 px→Tailwind 클래스 변환 |
 | DOM Scan/Verify | Playwright | locator 기반, 자동 대기, 동적 페이지 안정적 |
 | File Watch | chokidar | 소스 파일 변경 감지 |
 | File I/O | Node.js fs | 소스 읽기/쓰기 |
@@ -453,7 +453,7 @@ wigss/
 │   │   ├── agent/
 │   │   │   ├── agent-loop.ts           # 에이전트 메인 루프 (이벤트 기반)
 │   │   │   ├── openai-client.ts        # OpenAI GPT-4o (관찰/제안/채팅)
-│   │   │   ├── refactor-client.ts       # GPT-5.4 (리팩토링/검증)
+│   │   │   ├── refactor-client.ts       # Direct Tailwind mapping (리팩토링)
 │   │   │   └── tools.ts               # function calling 도구 정의
 │   │   ├── playwright.ts
 │   │   ├── file-utils.ts
@@ -628,12 +628,13 @@ interface AgentStore {
 
 ## 7. AI Agent Design
 
-### 7.1 OpenAI 듀얼 모델 구조
+### 7.1 AI + Tailwind mapping 구조
 
-| 역할 | 모델 | API | 이유 |
-|------|------|-----|------|
+| 역할 | 모델/방식 | API | 이유 |
+|------|-----------|-----|------|
 | 관찰/인식/제안/피드백/채팅/반응형 | **GPT-4o** | OpenAI Chat Completions | 빠른 응답, function calling |
-| 코드 리팩토링/검증 수정 | **GPT-5.4** | OpenAI Chat Completions | 코드 정밀도, 연쇄 영향 분석 |
+| 코드 리팩토링 | **Direct Tailwind mapping** | 없음 (LLM 미사용) | px→Tailwind 클래스 직접 변환, 빠르고 정확 |
+| 검증 | **Playwright** | 없음 | 재렌더링 후 레이아웃 비교 |
 | 구현 (우리가 코딩) | Claude Code | CLI | 개발 도구 |
 
 ### 7.2 에이전트 루프 (의사코드)
@@ -681,9 +682,9 @@ class WIGSSAgent {
           break;
 
         case 'save':
-          // 리팩토링 (GPT-5.4)
+          // 리팩토링 (direct Tailwind mapping — no LLM)
           // fabric.js canvas.toJSON()으로 구조화된 JSON diff 생성
-          const diffs = await this.openai('refactor', event.changes, { model: 'gpt-5.4' });
+          const diffs = this.tailwindMap(event.changes);
           this.ws.send({ type: 'diff_preview', diffs });
           break;
 
@@ -710,8 +711,8 @@ class WIGSSAgent {
         this.ws.send({ type: 'verification_result', passed: true });
         return;
       }
-      // GPT-5.4로 재수정
-      const fixes = await this.openai('fix', mismatches, { model: 'gpt-5.4' });
+      // direct Tailwind mapping으로 재수정
+      const fixes = this.tailwindMap(mismatches);
       await this.applyDiffs(fixes);
     }
     this.ws.send({ type: 'verification_result', passed: false });
@@ -799,7 +800,7 @@ const openaiTools = [
 |------|--------|--------|--------|
 | Playwright 불가 | Playwright (Chromium) | 캐싱 JSON | 데모 모드 |
 | OpenAI 불안정 | GPT-4o | GPT-4o-mini | 사전 캐싱 |
-| GPT-5.4 불안정 | GPT-5.4 | GPT-4o fallback | diff 텍스트 가이드 |
+| Tailwind mapping 실패 | Direct Tailwind mapping | GPT-4o fallback | diff 텍스트 가이드 |
 | WebSocket 불안정 | ws | polling fallback | REST API |
 | iframe 이슈 | iframe + fabric.js Canvas | 스크린샷 + fabric.js Canvas | DOM overlay fallback |
 
@@ -844,15 +845,15 @@ const openaiTools = [
 [1:20 ~ 1:35] 모바일 ★Agent
   [모바일 보기] → 375px 자동 재배치
 
-[1:35 ~ 2:15] 리팩토링 ★GPT-5.4
-  [저장] → GPT-5.4가 소스코드 diff → "h-16→h-12" → [적용]
+[1:35 ~ 2:15] 리팩토링 ★Direct Tailwind mapping
+  [저장] → direct Tailwind mapping으로 소스코드 diff → "h-16→h-12" → [적용]
 
-[2:15 ~ 2:40] 자기 검증 ★GPT-5.4
+[2:15 ~ 2:40] 자기 검증 ★Playwright
   자동 재렌더링 → "4px 불일치" → 자동 재수정 → "통과"
 
 [2:40 ~ 3:00]
-  "GPT-4o가 관찰하고, GPT-5.4가 코드를 고칩니다.
-   OpenAI 하나로, 항시 떠있는 에이전트. 설치 없이 npx 한 줄.
+  "GPT-4o가 관찰하고, direct Tailwind mapping이 코드를 고칩니다.
+   항시 떠있는 에이전트. 설치 없이 npx 한 줄.
    개발자는 드래그하고, 채팅하면 됩니다."
 ```
 
@@ -864,7 +865,7 @@ const openaiTools = [
 |------|------|
 | "설치 필요?" | "npx wigss 한 줄. 프로젝트에 아무것도 안 추가됩니다." |
 | "에이전트가 항시 떠있으면 비용?" | "이벤트 기반이라 대기 중엔 비용 ZERO. 이벤트 발생 시에만 AI 호출." |
-| "왜 AI 모델 두 개?" | "GPT-4o는 빠른 관찰/제안에 강하고, GPT-5.4는 코드 리팩토링에 정밀합니다. 단일 API 키로 운영." |
+| "왜 GPT-4o + Tailwind mapping?" | "GPT-4o는 빠른 관찰/제안에 강하고, 코드 리팩토링은 direct Tailwind mapping으로 LLM 없이 정확하게 처리합니다." |
 | "자연어도 되고 드래그도 되나?" | "네. 드래그가 기본이고, 막히면 채팅으로 물어보거나 위임합니다." |
 | "알아서 해줘 하면 마음대로 바꾸나?" | "아닙니다. 반드시 수정 계획을 먼저 보여주고 확인 후 진행합니다." |
 | "코드가 깨지면?" | "diff 미리보기 + 백업 + 자기 검증 3회로 안전합니다." |
