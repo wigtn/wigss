@@ -53,7 +53,7 @@ async function main() {
 
   console.log(`
   ╔══════════════════════════════════════╗
-  ║     WIGSS — Style Shaper v0.1.1     ║
+  ║     WIGSS — Style Shaper v0.1.2     ║
   ╠══════════════════════════════════════╣
   ║  Target:  http://localhost:${targetPort.toString().padEnd(10)}║
   ║  Editor:  http://localhost:${wigssPort.toString().padEnd(10)}║
