@@ -40,4 +40,4 @@ demo-target/.next/
 *.swo
 
 # local AI/tool settings
-.claude/settings.local.json
+.claude/
