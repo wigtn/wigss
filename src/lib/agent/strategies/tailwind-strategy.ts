@@ -1,4 +1,5 @@
 import type { CodeDiff, ComponentChange, DetectedComponent } from '@/types';
+import { findClassNameAttribute } from '@/lib/ast-utils';
 
 export type SourceInput = { path: string; content: string };
 
@@ -41,15 +42,29 @@ export function refactorTailwind(
   const fullClassName = (component as any).fullClassName || '';
   if (!fullClassName) return null;
 
+  // AST-based: find className attribute precisely (handles multi-line, template literals)
   let targetSource: SourceInput | null = null;
   let targetLineNumber = 0;
   for (const src of sources) {
-    const lines = src.content.split('\n');
-    const lineIdx = lines.findIndex(line => line.includes(`className="${fullClassName}"`));
-    if (lineIdx !== -1) {
+    const attr = findClassNameAttribute(src.content, fullClassName);
+    if (attr) {
       targetSource = src;
-      targetLineNumber = lineIdx + 1;
+      // Calculate line number from character position
+      targetLineNumber = src.content.slice(0, attr.fullStart).split('\n').length;
       break;
+    }
+  }
+
+  // Fallback: string-based search for non-parseable files
+  if (!targetSource) {
+    for (const src of sources) {
+      const lines = src.content.split('\n');
+      const lineIdx = lines.findIndex(line => line.includes(`className="${fullClassName}"`));
+      if (lineIdx !== -1) {
+        targetSource = src;
+        targetLineNumber = lineIdx + 1;
+        break;
+      }
     }
   }
 

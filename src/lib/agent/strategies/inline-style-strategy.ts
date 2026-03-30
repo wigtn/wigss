@@ -1,5 +1,6 @@
 import type { CodeDiff, ComponentChange, DetectedComponent } from '@/types';
 import { changeToCssProperties } from '@/lib/css-property-utils';
+import { findJsxAttributes, findClassNameAttribute } from '@/lib/ast-utils';
 import type { SourceInput } from './tailwind-strategy';
 
 /**
@@ -16,39 +17,74 @@ export function refactorInlineStyle(
 
   if (Object.keys(cssProps).length === 0) return null;
 
-  // Find the component in source files
+  // Find the component in source files (AST-based for multi-line support)
   for (const src of sources) {
     if (!src.path.endsWith('.tsx') && !src.path.endsWith('.jsx')) continue;
-    const lines = src.content.split('\n');
 
-    // Try matching by className first
+    // AST: find className attribute
+    let classNameFound = false;
+    if (fullClassName) {
+      const attr = findClassNameAttribute(src.content, fullClassName);
+      if (attr) classNameFound = true;
+    }
+
+    // Fallback: string-based search
+    if (!classNameFound && fullClassName) {
+      if (!src.content.includes(`className="${fullClassName}"`)) {
+        // Try data-component
+        if (component.name && !src.content.includes(`data-component="${component.name}"`)) {
+          continue;
+        }
+      }
+    }
+
+    const lines = src.content.split('\n');
     let targetLineIdx = -1;
     if (fullClassName) {
       targetLineIdx = lines.findIndex(line => line.includes(`className="${fullClassName}"`));
     }
-
-    // Fallback: match by data-component attribute
     if (targetLineIdx === -1 && component.name) {
       targetLineIdx = lines.findIndex(line =>
         line.includes(`data-component="${component.name}"`) ||
         line.includes(`data-component='${component.name}'`)
       );
     }
-
     if (targetLineIdx === -1) continue;
 
     const targetLine = lines[targetLineIdx];
 
-    // Check if style={{...}} already exists on this line or nearby
-    const styleMatch = targetLine.match(/style=\{\{([^}]*)\}\}/);
+    // AST: find style attributes (handles multi-line style objects)
+    const styleAttrs = findJsxAttributes(src.content, 'style');
+    // Find style on the same element (near the className location)
+    const nearbyStyle = styleAttrs.find(s => {
+      const styleLine = src.content.slice(0, s.fullStart).split('\n').length - 1;
+      return Math.abs(styleLine - targetLineIdx) <= 3;
+    });
+
+    // Fallback to regex for single-line style
+    // Normalize to { full, inner } format
+    let styleInfo: { full: string; inner: string } | null = null;
+    if (nearbyStyle) {
+      const full = nearbyStyle.valueText;
+      // Extract inner content between {{ and }}
+      const innerMatch = full.match(/\{\{\s*([\s\S]*?)\s*\}\}/);
+      if (innerMatch) {
+        styleInfo = { full: `style=${full}`, inner: innerMatch[1].trim() };
+      }
+    } else {
+      const regexMatch = targetLine.match(/style=\{\{([^}]*)\}\}/);
+      if (regexMatch) {
+        styleInfo = { full: regexMatch[0], inner: regexMatch[1].trim() };
+      }
+    }
 
     let original: string;
     let modified: string;
 
-    if (styleMatch) {
+    if (styleInfo) {
       // Modify existing style attribute
-      original = styleMatch[0];
-      const existingStyles = styleMatch[1].trim();
+      original = styleInfo.full;
+      const existingStyles = styleInfo.inner;
       const newStyles = Object.entries(cssProps)
         .map(([k, v]) => `${k}: '${v}'`)
         .join(', ');

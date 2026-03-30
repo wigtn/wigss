@@ -27,6 +27,7 @@
   ],
   "packageManager": "pnpm@10.28.1",
   "dependencies": {
+    "@babel/parser": "^7.29.2",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@types/ws": "^8.18.1",

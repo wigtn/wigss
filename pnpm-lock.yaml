@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@babel/parser':
+        specifier: ^7.29.2
+        version: 7.29.2
       '@types/react':
         specifier: ^19.2.14
         version: 19.2.14
