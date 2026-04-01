@@ -29,16 +29,10 @@ export interface RawScanElement {
     display: string;
     position: string;
     flexDirection: string;
-    gridTemplateColumns: string;
-    gridTemplateRows: string;
-    gap: string;
-    justifyContent: string;
-    alignItems: string;
-    overflow: string;
-    padding: string;
-    margin: string;
-    borderRadius: string;
-    backgroundColor: string;
+    gridTemplateColumns?: string;
+    gap?: string;
+    justifyContent?: string;
+    alignItems?: string;
   };
 }
 

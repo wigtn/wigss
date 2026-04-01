@@ -23,7 +23,13 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
+                var MAX_ELEMENTS = 300;
+                var MAX_DEPTH = 8;
+                var MIN_WIDTH = 30;
+                var MIN_HEIGHT = 20;
                 var SKIP = ['SCRIPT','STYLE','NOSCRIPT','META','LINK','HEAD','BR','HR','SVG','PATH'];
+                var INLINE_TAGS = ['SPAN','A','STRONG','EM','B','I','SMALL','CODE'];
+                var ATTR_LIST = ['id','class','data-component','role','href','src','alt'];
 
                 function reportHeight() {
                   var h = document.documentElement.scrollHeight;
@@ -34,34 +40,44 @@ export default function RootLayout({
                   var results = [];
                   var count = 0;
                   function walk(node, depth) {
-                    if (count > 200 || depth > 6) return;
+                    if (count >= MAX_ELEMENTS || depth > MAX_DEPTH) return;
                     if (!(node instanceof HTMLElement)) return;
                     var tag = node.tagName.toUpperCase();
                     if (SKIP.indexOf(tag) >= 0) return;
-                    // Skip tiny inline elements (spans inside text, etc.)
-                    if (['SPAN','A','STRONG','EM','B','I','SMALL','CODE'].indexOf(tag) >= 0 && !node.getAttribute('data-component')) {
-                      // Still recurse into children
-                      if (depth < 6) {
-                        for (var ci = 0; ci < node.children.length; ci++) {
-                          walk(node.children[ci], depth + 1);
-                        }
+
+                    // Skip inline elements (still recurse into children)
+                    if (INLINE_TAGS.indexOf(tag) >= 0 && !node.getAttribute('data-component')) {
+                      for (var ci = 0; ci < node.children.length; ci++) {
+                        walk(node.children[ci], depth + 1);
                       }
                       return;
                     }
+
+                    // Size check before expensive getComputedStyle
+                    var r = node.getBoundingClientRect();
+                    if (r.width < MIN_WIDTH || r.height < MIN_HEIGHT) return;
+
                     var cs = window.getComputedStyle(node);
                     if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') return;
-                    var r = node.getBoundingClientRect();
-                    // Minimum area: 30x20px (skip tiny decorative elements)
-                    if (r.width < 30 || r.height < 20) return;
+
                     count++;
                     var attrs = {};
-                    ['id','class','data-component','role','href','src','alt'].forEach(function(a) {
+                    for (var ai = 0; ai < ATTR_LIST.length; ai++) {
+                      var a = ATTR_LIST[ai];
                       if (node.getAttribute(a)) attrs[a] = node.getAttribute(a);
-                    });
+                    }
                     var text = '';
-                    node.childNodes.forEach(function(c) {
+                    for (var ti = 0; ti < node.childNodes.length; ti++) {
+                      var c = node.childNodes[ti];
                       if (c.nodeType === 3) text += (c.textContent || '').trim() + ' ';
-                    });
+                    }
+
+                    var parentEl = node.parentElement;
+                    var parentId = null;
+                    if (parentEl && parentEl !== document.body) {
+                      parentId = parentEl.id || parentEl.getAttribute('data-component') || null;
+                    }
+
                     results.push({
                       id: node.id || node.getAttribute('data-component') || 'el-' + count,
                       tagName: tag.toLowerCase(),
@@ -76,12 +92,22 @@ export default function RootLayout({
                       children: [],
                       attributes: attrs,
                       textContent: text.trim().slice(0, 80),
-                      depth: depth
+                      depth: depth,
+                      computedStyle: {
+                        display: cs.display,
+                        position: cs.position,
+                        flexDirection: cs.flexDirection || '',
+                        gridTemplateColumns: cs.gridTemplateColumns || '',
+                        gap: cs.gap || '',
+                        justifyContent: cs.justifyContent || '',
+                        alignItems: cs.alignItems || ''
+                      },
+                      childCount: node.children.length,
+                      parentId: parentId
                     });
-                    if (depth < 8) {
-                      for (var i = 0; i < node.children.length; i++) {
-                        walk(node.children[i], depth + 1);
-                      }
+
+                    for (var i = 0; i < node.children.length; i++) {
+                      walk(node.children[i], depth + 1);
                     }
                   }
                   var body = document.body;
@@ -108,26 +134,27 @@ export default function RootLayout({
                 });
 
                 // Live style preview: apply inline styles during drag
+                var liveStyleCache = {};
                 window.addEventListener('message', function(e) {
                   if (e.data && e.data.type === 'wigss-live-style') {
                     var className = e.data.className;
                     var styles = e.data.styles;
                     if (!className || !styles) return;
-                    // Find element by matching className substring
-                    var allElements = document.querySelectorAll('*');
-                    for (var i = 0; i < allElements.length; i++) {
-                      var el = allElements[i];
-                      if (el.className && typeof el.className === 'string' && el.className.includes(className)) {
-                        for (var prop in styles) {
-                          el.style[prop] = styles[prop];
-                        }
-                        break;
+                    // Cache element lookup by className for performance
+                    var el = liveStyleCache[className];
+                    if (!el || !el.isConnected) {
+                      el = document.querySelector('[class*="' + className.split(' ')[0] + '"]');
+                      if (el) liveStyleCache[className] = el;
+                    }
+                    if (el) {
+                      for (var prop in styles) {
+                        el.style[prop] = styles[prop];
                       }
                     }
                   }
-                  // Reset all inline styles (on re-scan or save)
                   if (e.data && e.data.type === 'wigss-reset-styles') {
-                    var allEls = document.querySelectorAll('*');
+                    liveStyleCache = {};
+                    var allEls = document.querySelectorAll('[style]');
                     for (var j = 0; j < allEls.length; j++) {
                       allEls[j].removeAttribute('style');
                     }
@@ -137,15 +164,18 @@ export default function RootLayout({
                 // No auto-scan — only respond to explicit wigss-scan-request
 
                 window.addEventListener('load', reportHeight);
+                var resizeTimer;
                 window.addEventListener('resize', function() {
                   reportHeight();
-                  // Also report updated elements on resize
-                  var elements = scanElements();
-                  window.parent.postMessage({
-                    type: 'wigss-scan-result',
-                    elements: elements,
-                    viewport: { width: window.innerWidth, height: document.documentElement.scrollHeight }
-                  }, '*');
+                  clearTimeout(resizeTimer);
+                  resizeTimer = setTimeout(function() {
+                    var elements = scanElements();
+                    window.parent.postMessage({
+                      type: 'wigss-scan-result',
+                      elements: elements,
+                      viewport: { width: window.innerWidth, height: document.documentElement.scrollHeight }
+                    }, '*');
+                  }, 250);
                 });
                 new MutationObserver(reportHeight).observe(document.body, { childList: true, subtree: true });
                 setTimeout(reportHeight, 500);

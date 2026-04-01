@@ -1,13 +1,11 @@
 /**
- * Navbar component
- * INTENTIONAL FLAW: h-16 with excessive internal padding (py-6)
- * makes the navbar taller than the declared h-16 — overflow/inconsistency issue
+ * Navbar component for WIGSS demo
  */
 export default function Navbar() {
   return (
     <nav
       data-component="navbar"
-      className="h-[151px] bg-gray-900 py-[77px] px-8 flex items-center justify-between border-b border-gray-800 h-[327px] h-[116px]"
+      className="h-16 bg-gray-900 py-4 px-8 flex items-center justify-between border-b border-gray-800"
     >
       <div className="flex items-center gap-2">
         <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-sm font-bold">
