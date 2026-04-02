@@ -7,6 +7,16 @@ export interface CssRuleMatch {
 }
 
 /**
+ * Check if a CSS selector targets the given class name.
+ * Matches `.card` in `.card`, `.card.active`, `.card:hover`, `.card > .inner`
+ * but NOT `.card-wrapper` or `.my-card`.
+ */
+function selectorMatchesClass(ruleSelector: string, className: string): boolean {
+  const escaped = className.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`\\.${escaped}(?=[.:#\\s,>+~\\[)]|$)`).test(ruleSelector);
+}
+
+/**
  * Find a CSS rule by class selector using postcss AST.
  */
 export function findCssRuleAst(cssContent: string, selector: string): CssRuleMatch | null {
@@ -20,7 +30,7 @@ export function findCssRuleAst(cssContent: string, selector: string): CssRuleMat
   let match: CssRuleMatch | null = null;
   root.walkRules((rule) => {
     if (match) return;
-    if (rule.selector === `.${selector}`) {
+    if (selectorMatchesClass(rule.selector, selector)) {
       match = {
         startLine: rule.source?.start?.line ?? 0,
         endLine: rule.source?.end?.line ?? 0,
@@ -51,7 +61,7 @@ export function modifyCssRuleAst(
   let targetRule: postcss.Rule | null = null;
   root.walkRules((rule) => {
     if (targetRule) return;
-    if (rule.selector === `.${selector}`) {
+    if (selectorMatchesClass(rule.selector, selector)) {
       targetRule = rule;
     }
   });

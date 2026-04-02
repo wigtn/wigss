@@ -1,3 +1,4 @@
+import path from 'path';
 import type { DetectedComponent, CssStrategyInfo } from '@/types';
 
 type SourceInput = { path: string; content: string };
@@ -9,7 +10,9 @@ export function isTailwindClassName(className: string): boolean {
   if (!className) return false;
   const classes = className.split(/\s+/);
   const twCount = classes.filter(c => TW_PATTERNS.test(c)).length;
-  return twCount / classes.length >= 0.3;
+  /** Minimum ratio of Tailwind utility classes to total classes for detection */
+  const TAILWIND_DETECTION_THRESHOLD = 0.3;
+  return twCount / classes.length >= TAILWIND_DETECTION_THRESHOLD;
 }
 
 export function findCssModuleImport(sourceContent: string): { binding: string; path: string } | null {
@@ -22,7 +25,7 @@ export function detectCssStrategy(
   component: DetectedComponent,
   sources: SourceInput[],
 ): CssStrategyInfo {
-  const fullClassName = (component as any).fullClassName || '';
+  const fullClassName = component.fullClassName || '';
 
   // 1. Check Tailwind: className="..." with Tailwind utilities in source
   if (fullClassName && isTailwindClassName(fullClassName)) {
@@ -48,8 +51,8 @@ export function detectCssStrategy(
       const cssClassName = match.replace(`${moduleImport.binding}.`, '');
       if (cssClassName.toLowerCase().includes(compName) || compName.includes(cssClassName.toLowerCase())) {
         // Resolve stylesheet path relative to the source file
-        const srcDir = src.path.replace(/[^/]+$/, '');
-        const stylesheetPath = srcDir + moduleImport.path.replace(/^\.\//, '');
+        const srcDir = path.dirname(src.path);
+        const stylesheetPath = path.join(srcDir, moduleImport.path);
         return {
           strategy: 'css-module',
           bindingName: moduleImport.binding,
@@ -62,8 +65,8 @@ export function detectCssStrategy(
     // Fallback: if there's a module import, use the first class reference
     if (classNames.length > 0 && classNames[0]) {
       const cssClassName = classNames[0].replace(`${moduleImport.binding}.`, '');
-      const srcDir = src.path.replace(/[^/]+$/, '');
-      const stylesheetPath = srcDir + moduleImport.path.replace(/^\.\//, '');
+      const srcDir = path.dirname(src.path);
+      const stylesheetPath = path.join(srcDir, moduleImport.path);
       return {
         strategy: 'css-module',
         bindingName: moduleImport.binding,

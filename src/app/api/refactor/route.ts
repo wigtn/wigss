@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
       const comp = components.find(c => c.id === change.componentId);
       console.log(`[Refactor API] Change: ${change.type} ${change.componentId}`);
       console.log(`  component: ${comp?.name || 'NOT FOUND'}`);
-      console.log(`  fullClassName: "${(comp as any)?.fullClassName || 'EMPTY'}"`);
+      console.log(`  fullClassName: "${comp?.fullClassName || 'EMPTY'}"`);
       console.log(`  sourceFile: "${comp?.sourceFile || 'EMPTY'}"`);
       console.log(`  from:`, change.from, '→ to:', change.to);
     }

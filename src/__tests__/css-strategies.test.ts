@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { generateRefactorDiffs } from '../lib/agent/refactor-client';
 import { detectCssStrategy, isTailwindClassName } from '../lib/css-strategy-detector';
-import { findCssRule, modifyCssRule, changeToCssProperties, changeToCssKebab } from '../lib/css-property-utils';
+import { changeToCssProperties, changeToCssKebab } from '../lib/css-property-utils';
 import type { ComponentChange, DetectedComponent } from '../types';
 
 function makeComp(id: string, fullClassName: string, overrides: Partial<DetectedComponent> = {}): DetectedComponent {
@@ -90,33 +90,6 @@ describe('css-property-utils', () => {
     expect(props).toEqual({ 'margin-top': '20px', 'margin-left': '10px' });
   });
 
-  it('findCssRule: should find a CSS rule', () => {
-    const css = `.card {\n  height: 200px;\n  background: white;\n}`;
-    const rule = findCssRule(css, 'card');
-    expect(rule).not.toBeNull();
-    expect(rule!.ruleText).toContain('height: 200px');
-    expect(rule!.startLine).toBe(1);
-  });
-
-  it('findCssRule: should return null for missing rule', () => {
-    const css = `.other { color: red; }`;
-    expect(findCssRule(css, 'card')).toBeNull();
-  });
-
-  it('modifyCssRule: should replace existing property', () => {
-    const rule = `.card {\n  height: 200px;\n  background: white;\n}`;
-    const modified = modifyCssRule(rule, { height: '300px' });
-    expect(modified).toContain('height: 300px');
-    expect(modified).not.toContain('height: 200px');
-    expect(modified).toContain('background: white');
-  });
-
-  it('modifyCssRule: should add new property', () => {
-    const rule = `.card {\n  background: white;\n}`;
-    const modified = modifyCssRule(rule, { width: '400px' });
-    expect(modified).toContain('width: 400px');
-    expect(modified).toContain('background: white');
-  });
 });
 
 // ── Inline Style Strategy ──

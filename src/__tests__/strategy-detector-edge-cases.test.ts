@@ -130,4 +130,13 @@ describe('detectCssStrategy: comprehensive', () => {
     expect(info.strategy).toBe('plain-css');
     expect(info.cssClassName).toBe('card-wrapper');
   });
+
+  it('CSS Module: resolves ../ relative import path (N1 regression)', () => {
+    const info = detectCssStrategy(comp('card', ''), [
+      { path: 'src/components/Card.tsx', content: `import styles from '../styles/Card.module.css';\n<div className={styles.card}>x</div>` },
+      { path: 'src/styles/Card.module.css', content: '.card { height: 200px; }' },
+    ]);
+    expect(info.strategy).toBe('css-module');
+    expect(info.stylesheetPath).toBe('src/styles/Card.module.css');
+  });
 });

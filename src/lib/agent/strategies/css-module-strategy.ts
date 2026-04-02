@@ -18,7 +18,7 @@ export function refactorCssModule(
   const { stylesheetPath, cssClassName } = cssInfo;
   if (!stylesheetPath || !cssClassName) return null;
 
-  const stylesheet = sources.find(s => s.path === stylesheetPath || s.path.endsWith(stylesheetPath));
+  const stylesheet = sources.find(s => s.path === stylesheetPath || s.path.endsWith('/' + stylesheetPath));
   if (!stylesheet) {
     console.log(`[CSSModule] Stylesheet not found: ${stylesheetPath}`);
     return null;

@@ -39,7 +39,7 @@ export function refactorTailwind(
   component: DetectedComponent,
   sources: SourceInput[],
 ): CodeDiff | null {
-  const fullClassName = (component as any).fullClassName || '';
+  const fullClassName = component.fullClassName || '';
   if (!fullClassName) return null;
 
   // AST-based: find className attribute precisely (handles multi-line, template literals)
@@ -77,9 +77,8 @@ export function refactorTailwind(
     return null;
   }
 
-  let oldClass = '';
-  let newClass = '';
-  let addedClass = '';
+  const replacements: { old: string; new: string }[] = [];
+  const additions: string[] = [];
   const explanation: string[] = [];
 
   if (change.type === 'resize') {
@@ -89,41 +88,43 @@ export function refactorTailwind(
     if (Math.abs(dh) > 2) {
       const hClass = findTwClass(fullClassName, 'h');
       if (hClass) {
-        oldClass = hClass;
-        newClass = pxToTw(change.to.height!, 'h');
-        explanation.push(`높이: ${hClass} → ${newClass}`);
+        const hNew = pxToTw(change.to.height!, 'h');
+        replacements.push({ old: hClass, new: hNew });
+        explanation.push(`높이: ${hClass} → ${hNew}`);
       } else {
         const pyClass = findTwClass(fullClassName, 'py');
         if (pyClass) {
           const currentPy = parseInt(pyClass.replace(/\D/g, '') || '0');
           const newPy = Math.max(0, currentPy + Math.round(dh / 2));
-          oldClass = pyClass;
-          newClass = pxToTw(newPy, 'py');
-          explanation.push(`패딩: ${oldClass} → ${newClass}`);
+          const pyNew = pxToTw(newPy, 'py');
+          replacements.push({ old: pyClass, new: pyNew });
+          explanation.push(`패딩: ${pyClass} → ${pyNew}`);
         } else {
-          addedClass = pxToTw(change.to.height!, 'h');
-          explanation.push(`높이 추가: ${addedClass}`);
+          const hAdded = pxToTw(change.to.height!, 'h');
+          additions.push(hAdded);
+          explanation.push(`높이 추가: ${hAdded}`);
         }
       }
     }
 
-    if (Math.abs(dw) > 2 && !oldClass && !addedClass) {
+    if (Math.abs(dw) > 2) {
       const wClass = findTwClass(fullClassName, 'w');
       if (wClass) {
-        oldClass = wClass;
-        newClass = pxToTw(change.to.width!, 'w');
-        explanation.push(`너비: ${oldClass} → ${newClass}`);
+        const wNew = pxToTw(change.to.width!, 'w');
+        replacements.push({ old: wClass, new: wNew });
+        explanation.push(`너비: ${wClass} → ${wNew}`);
       } else {
         const pxClass = findTwClass(fullClassName, 'px');
         if (pxClass) {
           const currentPx = parseInt(pxClass.replace(/\D/g, '') || '0');
           const newPx = Math.max(0, currentPx + Math.round(dw / 2));
-          oldClass = pxClass;
-          newClass = pxToTw(newPx, 'px');
-          explanation.push(`패딩: ${oldClass} → ${newClass}`);
+          const pxNew = pxToTw(newPx, 'px');
+          replacements.push({ old: pxClass, new: pxNew });
+          explanation.push(`패딩: ${pxClass} → ${pxNew}`);
         } else {
-          addedClass = pxToTw(change.to.width!, 'w');
-          explanation.push(`너비 추가: ${addedClass}`);
+          const wAdded = pxToTw(change.to.width!, 'w');
+          additions.push(wAdded);
+          explanation.push(`너비 추가: ${wAdded}`);
         }
       }
     }
@@ -138,67 +139,64 @@ export function refactorTailwind(
       if (mtClass) {
         const currentPx = parseTwPx(mtClass, 'mt');
         const newPx = Math.max(0, currentPx + Math.round(dy));
-        oldClass = mtClass;
-        newClass = pxToTw(newPx, 'mt');
-        explanation.push(`마진: ${oldClass} → ${newClass}`);
+        const mtNew = pxToTw(newPx, 'mt');
+        replacements.push({ old: mtClass, new: mtNew });
+        explanation.push(`마진: ${mtClass} → ${mtNew}`);
       } else {
         const mbClass = findTwClass(fullClassName, 'mb');
         if (mbClass) {
           const currentPx = parseTwPx(mbClass, 'mb');
           const newPx = Math.max(0, currentPx - Math.round(dy));
-          oldClass = mbClass;
-          newClass = pxToTw(newPx, 'mb');
-          explanation.push(`마진: ${oldClass} → ${newClass}`);
+          const mbNew = pxToTw(newPx, 'mb');
+          replacements.push({ old: mbClass, new: mbNew });
+          explanation.push(`마진: ${mbClass} → ${mbNew}`);
         } else {
           if (dy > 0) {
-            addedClass = `mt-[${Math.round(dy)}px]`;
-            explanation.push(`마진 추가: ${addedClass}`);
+            const added = `mt-[${Math.round(dy)}px]`;
+            additions.push(added);
+            explanation.push(`마진 추가: ${added}`);
           } else {
-            addedClass = `-translate-y-[${Math.abs(Math.round(dy))}px]`;
-            explanation.push(`이동: ${addedClass}`);
+            const added = `-translate-y-[${Math.abs(Math.round(dy))}px]`;
+            additions.push(added);
+            explanation.push(`이동: ${added}`);
           }
         }
       }
     }
 
-    if (Math.abs(dx) > 2 && !oldClass) {
+    if (Math.abs(dx) > 2) {
       const mlClass = findTwClass(fullClassName, 'ml');
       if (mlClass) {
         const currentPx = parseTwPx(mlClass, 'ml');
         const newPx = Math.max(0, currentPx + Math.round(dx));
-        oldClass = mlClass;
-        newClass = pxToTw(newPx, 'ml');
-        explanation.push(`마진: ${oldClass} → ${newClass}`);
+        const mlNew = pxToTw(newPx, 'ml');
+        replacements.push({ old: mlClass, new: mlNew });
+        explanation.push(`마진: ${mlClass} → ${mlNew}`);
       } else {
         const hClass = dx > 0
           ? `ml-[${Math.round(dx)}px]`
           : `-translate-x-[${Math.abs(Math.round(dx))}px]`;
-        addedClass = addedClass ? `${addedClass} ${hClass}` : hClass;
+        additions.push(hClass);
         explanation.push(dx > 0 ? `마진 추가: ${hClass}` : `이동: ${hClass}`);
       }
     }
   }
 
-  if (addedClass && !oldClass) {
-    const modifiedClassName = `${fullClassName} ${addedClass}`;
-    const originalLine = `className="${fullClassName}"`;
-    const modifiedLine = `className="${modifiedClassName}"`;
+  if (replacements.length === 0 && additions.length === 0) return null;
 
-    if (!targetSource.content.includes(originalLine)) return null;
-
-    return {
-      file: targetSource.path,
-      original: originalLine,
-      modified: modifiedLine,
-      lineNumber: targetLineNumber,
-      explanation: explanation.join(', '),
-      strategy: 'tailwind',
-    };
+  // Build modified className by applying all replacements and additions
+  let modifiedClassName = fullClassName;
+  for (const r of replacements) {
+    if (r.old !== r.new) {
+      modifiedClassName = modifiedClassName.replace(r.old, r.new);
+    }
+  }
+  if (additions.length > 0) {
+    modifiedClassName = `${modifiedClassName} ${additions.join(' ')}`;
   }
 
-  if (!oldClass || !newClass || oldClass === newClass) return null;
+  if (modifiedClassName === fullClassName) return null;
 
-  const modifiedClassName = fullClassName.replace(oldClass, newClass);
   const originalLine = `className="${fullClassName}"`;
   const modifiedLine = `className="${modifiedClassName}"`;
 
@@ -209,7 +207,7 @@ export function refactorTailwind(
     original: originalLine,
     modified: modifiedLine,
     lineNumber: targetLineNumber,
-    explanation: explanation.join(', ') || `${oldClass} → ${newClass}`,
+    explanation: explanation.join(', '),
     strategy: 'tailwind',
   };
 }

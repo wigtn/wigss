@@ -12,7 +12,7 @@ export function refactorInlineStyle(
   component: DetectedComponent,
   sources: SourceInput[],
 ): CodeDiff | null {
-  const fullClassName = (component as any).fullClassName || '';
+  const fullClassName = component.fullClassName || '';
   const cssProps = changeToCssProperties(change);
 
   if (Object.keys(cssProps).length === 0) return null;
@@ -72,9 +72,23 @@ export function refactorInlineStyle(
         styleInfo = { full: `style=${full}`, inner: innerMatch[1].trim() };
       }
     } else {
-      const regexMatch = targetLine.match(/style=\{\{([^}]*)\}\}/);
-      if (regexMatch) {
-        styleInfo = { full: regexMatch[0], inner: regexMatch[1].trim() };
+      // Balanced brace matching for nested objects (e.g., style={{ transform: `translate(${x}px)` }})
+      const styleIdx = targetLine.indexOf('style={{');
+      if (styleIdx !== -1) {
+        let braceCount = 0;
+        const start = styleIdx + 6; // position of first {
+        let end = start;
+        for (let i = start; i < targetLine.length; i++) {
+          if (targetLine[i] === '{') braceCount++;
+          if (targetLine[i] === '}') braceCount--;
+          if (braceCount === 0) {
+            end = i + 1;
+            break;
+          }
+        }
+        const full = targetLine.slice(styleIdx, end);
+        const inner = targetLine.slice(styleIdx + 8, end - 2).trim();
+        styleInfo = { full, inner };
       }
     }
 

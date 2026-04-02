@@ -25,7 +25,8 @@ export function findJsxAttributes(
       plugins: ['jsx', 'typescript'],
       errorRecovery: true,
     });
-  } catch {
+  } catch (e) {
+    console.warn('[ast-utils] Parse failed:', e instanceof Error ? e.message : e);
     return [];
   }
 

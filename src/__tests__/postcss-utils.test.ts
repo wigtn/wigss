@@ -22,9 +22,22 @@ describe('postcss-utils: findCssRuleAst', () => {
     expect(findCssRuleAst(css, 'card')).toBeNull();
   });
 
-  it('should handle rules with pseudo-selectors (should NOT match)', () => {
+  it('should match compound selectors containing the class', () => {
     const css = `.card:hover {\n  opacity: 0.8;\n}`;
-    // .card:hover !== .card
+    const rule = findCssRuleAst(css, 'card');
+    expect(rule).not.toBeNull();
+    expect(rule!.ruleText).toContain('opacity: 0.8');
+  });
+
+  it('should match class in multi-class selector', () => {
+    const css = `.card.active {\n  border: 1px solid blue;\n}`;
+    const rule = findCssRuleAst(css, 'card');
+    expect(rule).not.toBeNull();
+    expect(rule!.ruleText).toContain('border: 1px solid blue');
+  });
+
+  it('should NOT match class as prefix of another class', () => {
+    const css = `.card-wrapper {\n  padding: 10px;\n}`;
     expect(findCssRuleAst(css, 'card')).toBeNull();
   });
 });

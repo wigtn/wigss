@@ -84,6 +84,29 @@ describe('Tailwind edge cases: resize', () => {
     expect(d).toHaveLength(1);
     expect(d[0].modified).toContain('w-48');
   });
+
+  it('2D resize: both width AND height change simultaneously', async () => {
+    const d = await refactor('flex h-48 w-64 bg-white', resize(
+      { width: 256, height: 192 },
+      { width: 320, height: 384 },
+    ));
+    expect(d).toHaveLength(1);
+    expect(d[0].modified).toContain('h-96');
+    expect(d[0].modified).toContain('w-80');
+    // Other classes preserved
+    expect(d[0].modified).toContain('flex');
+    expect(d[0].modified).toContain('bg-white');
+  });
+
+  it('2D resize: height has class, width needs to be added', async () => {
+    const d = await refactor('flex h-48 bg-white', resize(
+      { width: 200, height: 192 },
+      { width: 320, height: 256 },
+    ));
+    expect(d).toHaveLength(1);
+    expect(d[0].modified).toContain('h-64');
+    expect(d[0].modified).toContain('w-80');
+  });
 });
 
 describe('Tailwind edge cases: move', () => {
