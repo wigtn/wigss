@@ -6,6 +6,7 @@ import { useAgentStore } from '@/stores/agent-store';
 import { useShallow } from 'zustand/react/shallow';
 import type { BoundingBox, ComponentType, ComponentChange, DetectedComponent } from '@/types';
 import { detectComponents as detectFromDOM, type RawScanElement } from '@/lib/component-detector';
+import { BREAKPOINTS, type BreakpointName } from '@/lib/breakpoint-utils';
 
 // ── Colors by component type ──
 const TYPE_COLORS: Record<ComponentType, { stroke: string; fill: string; label: string }> = {
@@ -64,13 +65,15 @@ function handleStyle(dir: HandleDir): React.CSSProperties {
 }
 
 export default function VisualEditor() {
-  const { targetUrl, components, selectedComponentId, hoveredComponentId, viewportMode } =
+  const { targetUrl, components, selectedComponentId, hoveredComponentId, viewportMode, breakpointMode, currentBreakpoint } =
     useEditorStore(useShallow((s) => ({
       targetUrl: s.targetUrl,
       components: s.components,
       selectedComponentId: s.selectedComponentId,
       hoveredComponentId: s.hoveredComponentId,
       viewportMode: s.viewportMode,
+      breakpointMode: s.breakpointMode,
+      currentBreakpoint: s.currentBreakpoint,
     })));
   const agentStatus = useAgentStore((s) => s.status);
 
@@ -214,11 +217,13 @@ export default function VisualEditor() {
 
       if (moved || resized) {
         // Record ONE change (not per-frame)
+        const { breakpointMode: bpMode, currentBreakpoint: bp } = useEditorStore.getState();
         const change: ComponentChange = {
           componentId: interaction.compId,
           type: resized ? 'resize' : 'move',
           from: sb,
           to: newBox,
+          breakpoint: bpMode ? bp : null,
         };
         applyChangeRef.current(change);
 
@@ -255,7 +260,9 @@ export default function VisualEditor() {
   const viewportArea = DESKTOP_WIDTH * Math.max(canvasHeight, 800);
   const areaThreshold = viewportArea * 0.6;
 
-  const fixedWidth = viewportMode === 'mobile' ? MOBILE_WIDTH : DESKTOP_WIDTH;
+  const fixedWidth = breakpointMode && currentBreakpoint
+    ? BREAKPOINTS[currentBreakpoint as BreakpointName] ?? DESKTOP_WIDTH
+    : viewportMode === 'mobile' ? MOBILE_WIDTH : DESKTOP_WIDTH;
 
   return (
     <div
@@ -403,9 +410,12 @@ export default function VisualEditor() {
         )}
       </div>
 
-      {viewportMode === 'mobile' && (
+      {(viewportMode === 'mobile' || (breakpointMode && currentBreakpoint)) && (
         <div className="absolute top-2 left-1/2 -translate-x-1/2 px-3 py-1 bg-gray-800/80 rounded-full text-[10px] text-gray-400 backdrop-blur-sm">
-          375px - Mobile
+          {breakpointMode && currentBreakpoint
+            ? `${fixedWidth}px - ${currentBreakpoint}`
+            : '375px - Mobile'
+          }
         </div>
       )}
     </div>

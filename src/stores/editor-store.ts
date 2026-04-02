@@ -12,6 +12,10 @@ interface EditorState {
   mobileComponents: DetectedComponent[] | null;
   diffs: CodeDiff[];
 
+  // Breakpoint mode
+  breakpointMode: boolean;
+  currentBreakpoint: string | null;
+
   // Canvas history (fabric.js toJSON snapshots)
   canvasSnapshots: object[];
   canvasSnapshotIndex: number;
@@ -36,6 +40,10 @@ interface EditorState {
   setDiffs: (diffs: CodeDiff[]) => void;
   setTargetUrl: (url: string) => void;
   setProjectPath: (path: string) => void;
+
+  // Breakpoint actions
+  toggleBreakpointMode: () => void;
+  setCurrentBreakpoint: (bp: string | null) => void;
 
   // Apply a suggested change (update component bounding box)
   applyChange: (change: ComponentChange) => void;
@@ -66,6 +74,8 @@ const initialState = {
   viewportMode: 'desktop' as const,
   mobileComponents: null,
   diffs: [],
+  breakpointMode: false,
+  currentBreakpoint: null,
   canvasSnapshots: [],
   canvasSnapshotIndex: -1,
   history: [],
@@ -150,6 +160,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setTargetUrl: (url) => set({ targetUrl: url }),
 
   setProjectPath: (path) => set({ projectPath: path }),
+
+  toggleBreakpointMode: () =>
+    set((state) => ({
+      breakpointMode: !state.breakpointMode,
+      currentBreakpoint: state.breakpointMode ? null : state.currentBreakpoint,
+    })),
+
+  setCurrentBreakpoint: (bp) => set({ currentBreakpoint: bp }),
 
   applyChange: (change) =>
     set((state) => {

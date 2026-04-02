@@ -14,6 +14,12 @@ function dispatchRefactor(
 ): CodeDiff | null {
   const cssInfo = component.cssInfo ?? detectCssStrategy(component, sources);
 
+  // Inline style + breakpoint mode: responsive editing not possible
+  if (change.breakpoint && (cssInfo.strategy === 'inline-style')) {
+    console.log(`[Refactor] Inline style does not support breakpoint editing (${change.breakpoint})`);
+    return null;
+  }
+
   switch (cssInfo.strategy) {
     case 'tailwind':
       return refactorTailwind(change, component, sources);
@@ -24,7 +30,8 @@ function dispatchRefactor(
     case 'plain-css':
       return refactorPlainCss(change, component, sources, cssInfo);
     default:
-      // Universal fallback: inline style
+      // Universal fallback: inline style (skip if breakpoint mode)
+      if (change.breakpoint) return null;
       return refactorInlineStyle(change, component, sources);
   }
 }

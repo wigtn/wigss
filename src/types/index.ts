@@ -44,6 +44,7 @@ export interface ComponentChange {
   type: 'move' | 'resize';
   from: { x?: number; y?: number; width?: number; height?: number };
   to: { x?: number; y?: number; width?: number; height?: number };
+  breakpoint?: string | null;
 }
 
 export interface CodeDiff {

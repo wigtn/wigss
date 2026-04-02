@@ -1,10 +1,12 @@
 import type { CodeDiff, ComponentChange, DetectedComponent, CssStrategyInfo } from '@/types';
 import { changeToCssKebab } from '@/lib/css-property-utils';
-import { modifyCssRuleAst } from '@/lib/postcss-utils';
+import { modifyCssRuleAst, findOrCreateMediaRule } from '@/lib/postcss-utils';
+import { isBreakpointName } from '@/lib/breakpoint-utils';
 import type { SourceInput } from './tailwind-strategy';
 
 /**
  * CSS Module strategy: modify properties in .module.css files using postcss AST.
+ * Supports breakpoint-aware editing via @media queries.
  */
 export function refactorCssModule(
   change: ComponentChange,
@@ -24,6 +26,29 @@ export function refactorCssModule(
     return null;
   }
 
+  // Breakpoint mode: use @media query
+  if (change.breakpoint && isBreakpointName(change.breakpoint)) {
+    const result = findOrCreateMediaRule(stylesheet.content, cssClassName, change.breakpoint, cssProps);
+    if (!result) {
+      console.log(`[CSSModule] Failed to create @media rule for .${cssClassName} at ${change.breakpoint}`);
+      return null;
+    }
+
+    const explanation = Object.entries(cssProps)
+      .map(([k, v]) => `${k}: ${v}`)
+      .join(', ');
+
+    return {
+      file: stylesheet.path,
+      original: result.original,
+      modified: result.modified,
+      lineNumber: 0,
+      explanation: `@media ${change.breakpoint}: .${cssClassName} { ${explanation} }`,
+      strategy: 'css-module',
+    };
+  }
+
+  // Base mode: modify rule directly
   const result = modifyCssRuleAst(stylesheet.content, cssClassName, cssProps);
   if (!result) {
     console.log(`[CSSModule] Rule .${cssClassName} not found in ${stylesheetPath}`);

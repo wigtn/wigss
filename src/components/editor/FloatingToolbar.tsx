@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useEditorStore } from '@/stores/editor-store';
 import { useAgentStore } from '@/stores/agent-store';
+import { BREAKPOINTS, type BreakpointName } from '@/lib/breakpoint-utils';
 
 const STATUS_COLORS: Record<string, string> = {
   idle: 'bg-emerald-400',
@@ -28,6 +29,8 @@ const STATUS_LABELS: Record<string, string> = {
   verifying: 'Verifying...',
 };
 
+const BP_ORDER: BreakpointName[] = ['sm', 'md', 'lg', 'xl', '2xl'];
+
 export default function FloatingToolbar() {
   const {
     targetUrl,
@@ -43,6 +46,10 @@ export default function FloatingToolbar() {
     redo,
     clearChanges,
     setDiffs,
+    breakpointMode,
+    currentBreakpoint,
+    toggleBreakpointMode,
+    setCurrentBreakpoint,
   } = useEditorStore();
 
   const { status, connected, sendMessage, addLog } = useAgentStore();
@@ -172,6 +179,18 @@ export default function FloatingToolbar() {
     sendMessage('mobile_view', { targetWidth: next === 'mobile' ? 375 : 1280 });
   };
 
+  const handleBreakpointSelect = (bp: BreakpointName) => {
+    if (currentBreakpoint === bp) {
+      // Deselect: back to base
+      setCurrentBreakpoint(null);
+    } else {
+      setCurrentBreakpoint(bp);
+    }
+    // Request iframe re-scan at new viewport width
+    const targetWidth = currentBreakpoint === bp ? 1280 : BREAKPOINTS[bp];
+    sendMessage('mobile_view', { targetWidth });
+  };
+
   return (
     <>
     <div className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 py-2 bg-gray-900/90 backdrop-blur-md border-b border-gray-800/60">
@@ -197,10 +216,20 @@ export default function FloatingToolbar() {
         <ToolbarButton
           onClick={handleToggleViewport}
           active={viewportMode === 'mobile'}
+          disabled={breakpointMode}
           title={viewportMode === 'desktop' ? 'Switch to mobile view' : 'Switch to desktop view'}
         >
           <MobileIcon />
           <span>{viewportMode === 'desktop' ? 'Mobile' : 'Desktop'}</span>
+        </ToolbarButton>
+
+        <ToolbarButton
+          onClick={toggleBreakpointMode}
+          active={breakpointMode}
+          title={breakpointMode ? 'Exit breakpoint mode' : 'Enter breakpoint editing mode'}
+        >
+          <ResponsiveIcon />
+          <span>Responsive</span>
         </ToolbarButton>
 
         <div className="w-px h-5 bg-gray-700 mx-1" />
@@ -258,9 +287,36 @@ export default function FloatingToolbar() {
       </div>
     </div>
 
+    {/* Breakpoint bar — shown when breakpoint mode is active */}
+    {breakpointMode && (
+      <div className="fixed top-10 left-0 right-0 z-40 flex items-center justify-center gap-1 px-4 py-1.5 bg-gray-800/95 backdrop-blur-md border-b border-indigo-500/30">
+        <span className="text-[10px] text-gray-500 mr-2">Breakpoint:</span>
+        <BreakpointChip
+          label="Base"
+          active={currentBreakpoint === null}
+          onClick={() => setCurrentBreakpoint(null)}
+          width={null}
+        />
+        {BP_ORDER.map((bp) => (
+          <BreakpointChip
+            key={bp}
+            label={bp}
+            active={currentBreakpoint === bp}
+            onClick={() => handleBreakpointSelect(bp)}
+            width={BREAKPOINTS[bp]}
+          />
+        ))}
+        {currentBreakpoint && (
+          <span className="ml-3 text-[10px] text-indigo-300/80">
+            {BREAKPOINTS[currentBreakpoint as BreakpointName]}px
+          </span>
+        )}
+      </div>
+    )}
+
     {/* Save status banner — pointer-events none so it doesn't block clicks */}
     {saveMessage && (
-      <div className={`fixed top-10 left-0 right-0 z-40 px-4 py-2 text-xs text-center transition-all pointer-events-none ${
+      <div className={`fixed ${breakpointMode ? 'top-[76px]' : 'top-10'} left-0 right-0 z-40 px-4 py-2 text-xs text-center transition-all pointer-events-none ${
         saveState === 'done' ? 'bg-green-900/90 text-green-200' :
         saveState === 'error' ? 'bg-red-900/90 text-red-200' :
         saveState === 'preview' ? 'bg-blue-900/90 text-blue-200' :
@@ -274,6 +330,38 @@ export default function FloatingToolbar() {
       </div>
     )}
     </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// BreakpointChip
+// ---------------------------------------------------------------------------
+
+function BreakpointChip({
+  label,
+  active,
+  onClick,
+  width,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+  width: number | null;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`
+        px-2 py-0.5 rounded text-[10px] font-medium transition-colors
+        ${active
+          ? 'bg-indigo-600/60 text-indigo-200 border border-indigo-400/50'
+          : 'text-gray-400 hover:text-white hover:bg-gray-700/60 border border-transparent'
+        }
+      `}
+      title={width ? `${label}: ${width}px` : 'Base (no breakpoint)'}
+    >
+      {label}
+    </button>
   );
 }
 
@@ -335,6 +423,18 @@ function MobileIcon() {
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <rect x="5" y="2" width="14" height="20" rx="2" ry="2" />
       <line x1="12" y1="18" x2="12" y2="18" />
+    </svg>
+  );
+}
+
+function ResponsiveIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="3" width="20" height="14" rx="2" />
+      <path d="M8 21h8" />
+      <path d="M12 17v4" />
+      <path d="M7 7h2" />
+      <path d="M7 10h4" />
     </svg>
   );
 }

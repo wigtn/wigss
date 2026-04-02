@@ -23,15 +23,40 @@ const TW_REVERSE = new Map(Object.entries(TW_MAP).map(([px, tw]) => [tw, Number(
 function parseTwPx(twClass: string, prefix: string): number {
   const bracketMatch = twClass.match(/\[(\d+)px\]/);
   if (bracketMatch) return parseInt(bracketMatch[1]);
-  const twNum = twClass.replace(new RegExp(`^-?${prefix}-`), '');
+  // Strip any breakpoint prefix (e.g., "md:h-12" → "12")
+  const stripped = twClass.replace(/^[a-z0-9]+:/, '');
+  const twNum = stripped.replace(new RegExp(`^-?${prefix}-`), '');
   return TW_REVERSE.get(twNum) ?? parseInt(twNum) * 4;
 }
 
-function findTwClass(className: string, prefix: string): string | null {
+/**
+ * Find a Tailwind class by utility prefix in a className string.
+ * When breakpoint is null, finds base classes (no prefix).
+ * When breakpoint is set, finds breakpoint-prefixed classes (e.g., md:h-48).
+ */
+export function findTwClass(className: string, prefix: string, breakpoint?: string | null): string | null {
   const escaped = prefix.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
-  const regex = new RegExp(`(?:^|\\s)-?${escaped}-(?:\\[\\d+px\\]|\\d+\\.?\\d*)(?=\\s|$)`);
+
+  if (breakpoint) {
+    // Match breakpoint-prefixed class: e.g., "md:h-48", "sm:w-[200px]"
+    const bpEscaped = breakpoint.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+    const regex = new RegExp(`(?:^|\\s)${bpEscaped}:-?${escaped}-(?:\\[\\d+px\\]|\\d+\\.?\\d*)(?=\\s|$)`);
+    const match = className.match(regex);
+    return match ? match[0].trim() : null;
+  }
+
+  // Match base class (no breakpoint prefix): must NOT have "xx:" prefix
+  const regex = new RegExp(`(?:^|\\s)(?!\\S*:)-?${escaped}-(?:\\[\\d+px\\]|\\d+\\.?\\d*)(?=\\s|$)`);
   const match = className.match(regex);
   return match ? match[0].trim() : null;
+}
+
+/**
+ * Generate a Tailwind class with optional breakpoint prefix.
+ */
+function pxToTwWithBp(px: number, prefix: string, breakpoint?: string | null): string {
+  const twClass = pxToTw(px, prefix);
+  return breakpoint ? `${breakpoint}:${twClass}` : twClass;
 }
 
 export function refactorTailwind(
@@ -41,6 +66,8 @@ export function refactorTailwind(
 ): CodeDiff | null {
   const fullClassName = (component as any).fullClassName || '';
   if (!fullClassName) return null;
+
+  const bp = change.breakpoint || null;
 
   // AST-based: find className attribute precisely (handles multi-line, template literals)
   let targetSource: SourceInput | null = null;
@@ -81,49 +108,50 @@ export function refactorTailwind(
   let newClass = '';
   let addedClass = '';
   const explanation: string[] = [];
+  const bpLabel = bp ? `[${bp}] ` : '';
 
   if (change.type === 'resize') {
     const dw = (change.to.width ?? 0) - (change.from.width ?? 0);
     const dh = (change.to.height ?? 0) - (change.from.height ?? 0);
 
     if (Math.abs(dh) > 2) {
-      const hClass = findTwClass(fullClassName, 'h');
+      const hClass = findTwClass(fullClassName, 'h', bp);
       if (hClass) {
         oldClass = hClass;
-        newClass = pxToTw(change.to.height!, 'h');
-        explanation.push(`높이: ${hClass} → ${newClass}`);
+        newClass = pxToTwWithBp(change.to.height!, 'h', bp);
+        explanation.push(`${bpLabel}높이: ${hClass} → ${newClass}`);
       } else {
-        const pyClass = findTwClass(fullClassName, 'py');
+        const pyClass = findTwClass(fullClassName, 'py', bp);
         if (pyClass) {
           const currentPy = parseInt(pyClass.replace(/\D/g, '') || '0');
           const newPy = Math.max(0, currentPy + Math.round(dh / 2));
           oldClass = pyClass;
-          newClass = pxToTw(newPy, 'py');
-          explanation.push(`패딩: ${oldClass} → ${newClass}`);
+          newClass = pxToTwWithBp(newPy, 'py', bp);
+          explanation.push(`${bpLabel}패딩: ${oldClass} → ${newClass}`);
         } else {
-          addedClass = pxToTw(change.to.height!, 'h');
-          explanation.push(`높이 추가: ${addedClass}`);
+          addedClass = pxToTwWithBp(change.to.height!, 'h', bp);
+          explanation.push(`${bpLabel}높이 추가: ${addedClass}`);
         }
       }
     }
 
     if (Math.abs(dw) > 2 && !oldClass && !addedClass) {
-      const wClass = findTwClass(fullClassName, 'w');
+      const wClass = findTwClass(fullClassName, 'w', bp);
       if (wClass) {
         oldClass = wClass;
-        newClass = pxToTw(change.to.width!, 'w');
-        explanation.push(`너비: ${oldClass} → ${newClass}`);
+        newClass = pxToTwWithBp(change.to.width!, 'w', bp);
+        explanation.push(`${bpLabel}너비: ${oldClass} → ${newClass}`);
       } else {
-        const pxClass = findTwClass(fullClassName, 'px');
+        const pxClass = findTwClass(fullClassName, 'px', bp);
         if (pxClass) {
           const currentPx = parseInt(pxClass.replace(/\D/g, '') || '0');
           const newPx = Math.max(0, currentPx + Math.round(dw / 2));
           oldClass = pxClass;
-          newClass = pxToTw(newPx, 'px');
-          explanation.push(`패딩: ${oldClass} → ${newClass}`);
+          newClass = pxToTwWithBp(newPx, 'px', bp);
+          explanation.push(`${bpLabel}패딩: ${oldClass} → ${newClass}`);
         } else {
-          addedClass = pxToTw(change.to.width!, 'w');
-          explanation.push(`너비 추가: ${addedClass}`);
+          addedClass = pxToTwWithBp(change.to.width!, 'w', bp);
+          explanation.push(`${bpLabel}너비 추가: ${addedClass}`);
         }
       }
     }
@@ -134,47 +162,52 @@ export function refactorTailwind(
     const dx = (change.to.x ?? 0) - (change.from.x ?? 0);
 
     if (Math.abs(dy) > 2) {
-      const mtClass = findTwClass(fullClassName, 'mt');
+      const mtClass = findTwClass(fullClassName, 'mt', bp);
       if (mtClass) {
         const currentPx = parseTwPx(mtClass, 'mt');
         const newPx = Math.max(0, currentPx + Math.round(dy));
         oldClass = mtClass;
-        newClass = pxToTw(newPx, 'mt');
-        explanation.push(`마진: ${oldClass} → ${newClass}`);
+        newClass = pxToTwWithBp(newPx, 'mt', bp);
+        explanation.push(`${bpLabel}마진: ${oldClass} → ${newClass}`);
       } else {
-        const mbClass = findTwClass(fullClassName, 'mb');
+        const mbClass = findTwClass(fullClassName, 'mb', bp);
         if (mbClass) {
           const currentPx = parseTwPx(mbClass, 'mb');
           const newPx = Math.max(0, currentPx - Math.round(dy));
           oldClass = mbClass;
-          newClass = pxToTw(newPx, 'mb');
-          explanation.push(`마진: ${oldClass} → ${newClass}`);
+          newClass = pxToTwWithBp(newPx, 'mb', bp);
+          explanation.push(`${bpLabel}마진: ${oldClass} → ${newClass}`);
         } else {
           if (dy > 0) {
-            addedClass = `mt-[${Math.round(dy)}px]`;
-            explanation.push(`마진 추가: ${addedClass}`);
+            addedClass = bp ? `${bp}:mt-[${Math.round(dy)}px]` : `mt-[${Math.round(dy)}px]`;
+            explanation.push(`${bpLabel}마진 추가: ${addedClass}`);
           } else {
-            addedClass = `-translate-y-[${Math.abs(Math.round(dy))}px]`;
-            explanation.push(`이동: ${addedClass}`);
+            const translateClass = `-translate-y-[${Math.abs(Math.round(dy))}px]`;
+            addedClass = bp ? `${bp}:${translateClass}` : translateClass;
+            explanation.push(`${bpLabel}이동: ${addedClass}`);
           }
         }
       }
     }
 
     if (Math.abs(dx) > 2 && !oldClass) {
-      const mlClass = findTwClass(fullClassName, 'ml');
+      const mlClass = findTwClass(fullClassName, 'ml', bp);
       if (mlClass) {
         const currentPx = parseTwPx(mlClass, 'ml');
         const newPx = Math.max(0, currentPx + Math.round(dx));
         oldClass = mlClass;
-        newClass = pxToTw(newPx, 'ml');
-        explanation.push(`마진: ${oldClass} → ${newClass}`);
+        newClass = pxToTwWithBp(newPx, 'ml', bp);
+        explanation.push(`${bpLabel}마진: ${oldClass} → ${newClass}`);
       } else {
-        const hClass = dx > 0
-          ? `ml-[${Math.round(dx)}px]`
-          : `-translate-x-[${Math.abs(Math.round(dx))}px]`;
+        let hClass: string;
+        if (dx > 0) {
+          hClass = bp ? `${bp}:ml-[${Math.round(dx)}px]` : `ml-[${Math.round(dx)}px]`;
+        } else {
+          const translateClass = `-translate-x-[${Math.abs(Math.round(dx))}px]`;
+          hClass = bp ? `${bp}:${translateClass}` : translateClass;
+        }
         addedClass = addedClass ? `${addedClass} ${hClass}` : hClass;
-        explanation.push(dx > 0 ? `마진 추가: ${hClass}` : `이동: ${hClass}`);
+        explanation.push(dx > 0 ? `${bpLabel}마진 추가: ${hClass}` : `${bpLabel}이동: ${hClass}`);
       }
     }
   }
