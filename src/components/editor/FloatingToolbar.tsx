@@ -47,6 +47,8 @@ export default function FloatingToolbar() {
 
   const { status, connected, sendMessage, addLog } = useAgentStore();
 
+  const [open, setOpen] = useState(false);
+
   const handleScan = () => {
     sendMessage('scan', { url: targetUrl, projectPath });
   };
@@ -173,107 +175,130 @@ export default function FloatingToolbar() {
   };
 
   return (
-    <>
-    <div className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 py-2 bg-gray-900/90 backdrop-blur-md border-b border-gray-800/60">
-      {/* Left: Logo */}
-      <div className="flex items-center gap-3">
-        <span className="text-sm font-bold tracking-wider text-white/90">
-          WIGSS
-        </span>
-        <div className="w-px h-4 bg-gray-700" />
-      </div>
-
-      {/* Center: Action buttons */}
-      <div className="flex items-center gap-1">
-        <ToolbarButton
-          onClick={handleScan}
-          disabled={!connected || status !== 'idle'}
-          title="Scan target page"
-        >
-          <ScanIcon />
-          <span>Scan</span>
-        </ToolbarButton>
-
-        <ToolbarButton
-          onClick={handleToggleViewport}
-          active={viewportMode === 'mobile'}
-          title={viewportMode === 'desktop' ? 'Switch to mobile view' : 'Switch to desktop view'}
-        >
-          <MobileIcon />
-          <span>{viewportMode === 'desktop' ? 'Mobile' : 'Desktop'}</span>
-        </ToolbarButton>
-
-        <div className="w-px h-5 bg-gray-700 mx-1" />
-
-        <ToolbarButton
-          onClick={handleSave}
-          disabled={changes.length === 0 || saveState === 'generating' || saveState === 'applying'}
-          title="Save changes to source code"
-        >
-          <SaveIcon />
-          <span>
-            {saveState === 'generating' ? '생성 중...' :
-             saveState === 'applying' ? '적용 중...' :
-             saveState === 'done' ? '저장 완료!' :
-             saveState === 'error' ? '오류' :
-             `Save${changes.length > 0 ? ` (${changes.length})` : ''}`}
+    <div
+      className="fixed left-0 right-0 z-50 transition-transform duration-300 ease-out"
+      style={{ top: open ? 0 : -44 }}
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+    >
+      {/* Toolbar bar */}
+      <div className="flex items-center justify-between px-4 py-2 bg-gray-900/95 backdrop-blur-md border-b border-gray-800/60">
+        {/* Left: Logo */}
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-bold tracking-wider text-white/90">
+            WIGSS
           </span>
-        </ToolbarButton>
+          <div className="w-px h-4 bg-gray-700" />
+        </div>
 
-        <ToolbarButton
-          onClick={undo}
-          disabled={!canUndo()}
-          title="Undo"
-        >
-          <UndoIcon />
-        </ToolbarButton>
+        {/* Center: Action buttons */}
+        <div className="flex items-center gap-1">
+          <ToolbarButton
+            onClick={handleScan}
+            disabled={!connected || status !== 'idle'}
+            title="Scan target page"
+          >
+            <ScanIcon />
+            <span>Scan</span>
+          </ToolbarButton>
 
-        <ToolbarButton
-          onClick={redo}
-          disabled={!canRedo()}
-          title="Redo"
-        >
-          <RedoIcon />
-        </ToolbarButton>
-      </div>
+          <ToolbarButton
+            onClick={handleToggleViewport}
+            active={viewportMode === 'mobile'}
+            title={viewportMode === 'desktop' ? 'Switch to mobile view' : 'Switch to desktop view'}
+          >
+            <MobileIcon />
+            <span>{viewportMode === 'desktop' ? 'Mobile' : 'Desktop'}</span>
+          </ToolbarButton>
 
-      {/* Right: Agent status & Trae Badge */}
-      <div className="flex items-center gap-4">
-        <a
-          href="https://trae.ai"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 hover:bg-blue-500/20 transition-colors group"
-        >
-          <span className="text-[10px] font-medium text-blue-400/80 group-hover:text-blue-300">Built with</span>
-          <span className="text-[10px] font-bold text-blue-400 group-hover:text-blue-300">Trae.ai</span>
-        </a>
+          <div className="w-px h-5 bg-gray-700 mx-1" />
 
-        <div className="flex items-center gap-2">
-          <div className={`w-2 h-2 rounded-full ${connected ? STATUS_COLORS[status] || 'bg-gray-400' : 'bg-red-500'}`} />
-          <span className="text-xs text-gray-400">
-            {connected ? STATUS_LABELS[status] || status : 'Disconnected'}
-          </span>
+          <ToolbarButton
+            onClick={handleSave}
+            disabled={changes.length === 0 || saveState === 'generating' || saveState === 'applying'}
+            title="Save changes to source code"
+          >
+            <SaveIcon />
+            <span>
+              {saveState === 'generating' ? '생성 중...' :
+               saveState === 'applying' ? '적용 중...' :
+               saveState === 'done' ? '저장 완료!' :
+               saveState === 'error' ? '오류' :
+               `Save${changes.length > 0 ? ` (${changes.length})` : ''}`}
+            </span>
+          </ToolbarButton>
+
+          <ToolbarButton
+            onClick={undo}
+            disabled={!canUndo()}
+            title="Undo"
+          >
+            <UndoIcon />
+          </ToolbarButton>
+
+          <ToolbarButton
+            onClick={redo}
+            disabled={!canRedo()}
+            title="Redo"
+          >
+            <RedoIcon />
+          </ToolbarButton>
+        </div>
+
+        {/* Right: Agent status & Trae Badge */}
+        <div className="flex items-center gap-4">
+          <a
+            href="https://trae.ai"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 hover:bg-blue-500/20 transition-colors group"
+          >
+            <span className="text-[10px] font-medium text-blue-400/80 group-hover:text-blue-300">Built with</span>
+            <span className="text-[10px] font-bold text-blue-400 group-hover:text-blue-300">Trae.ai</span>
+          </a>
+
+          <div className="flex items-center gap-2">
+            <div className={`w-2 h-2 rounded-full ${connected ? STATUS_COLORS[status] || 'bg-gray-400' : 'bg-red-500'}`} />
+            <span className="text-xs text-gray-400">
+              {connected ? STATUS_LABELS[status] || status : 'Disconnected'}
+            </span>
+          </div>
         </div>
       </div>
-    </div>
 
-    {/* Save status banner — pointer-events none so it doesn't block clicks */}
-    {saveMessage && (
-      <div className={`fixed top-10 left-0 right-0 z-40 px-4 py-2 text-xs text-center transition-all pointer-events-none ${
-        saveState === 'done' ? 'bg-green-900/90 text-green-200' :
-        saveState === 'error' ? 'bg-red-900/90 text-red-200' :
-        saveState === 'preview' ? 'bg-blue-900/90 text-blue-200' :
-        'bg-gray-800/90 text-gray-300'
-      }`}>
-        {saveState === 'generating' && <span className="animate-pulse mr-2">●</span>}
-        {saveState === 'applying' && <span className="animate-pulse mr-2">●</span>}
-        {saveState === 'done' && <span className="mr-2">✓</span>}
-        {saveState === 'error' && <span className="mr-2">✗</span>}
-        {saveMessage}
+      {/* Arrow tab — always visible, sticks to bottom of toolbar */}
+      <div className="flex justify-center">
+        <button
+          onClick={() => setOpen((v) => !v)}
+          className="w-10 h-5 flex items-center justify-center rounded-b-lg bg-purple-800/90 cursor-pointer hover:bg-purple-700 transition-colors"
+          aria-label="Toggle toolbar"
+        >
+          <svg
+            width="12" height="12" viewBox="0 0 24 24" fill="none"
+            stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+            className={`transition-transform duration-300 ${open ? 'rotate-180' : ''}`}
+          >
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </button>
       </div>
-    )}
-    </>
+
+      {/* Save status banner */}
+      {saveMessage && (
+        <div className={`px-4 py-2 text-xs text-center pointer-events-none ${
+          saveState === 'done' ? 'bg-green-900/90 text-green-200' :
+          saveState === 'error' ? 'bg-red-900/90 text-red-200' :
+          saveState === 'preview' ? 'bg-blue-900/90 text-blue-200' :
+          'bg-gray-800/90 text-gray-300'
+        }`}>
+          {saveState === 'generating' && <span className="animate-pulse mr-2">●</span>}
+          {saveState === 'applying' && <span className="animate-pulse mr-2">●</span>}
+          {saveState === 'done' && <span className="mr-2">✓</span>}
+          {saveState === 'error' && <span className="mr-2">✗</span>}
+          {saveMessage}
+        </div>
+      )}
+    </div>
   );
 }
 

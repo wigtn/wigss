@@ -169,6 +169,15 @@ function inferSourceFile(el: RawScanElement): string {
   return '';
 }
 
+// ── Text hint for identifying components ──
+function getTextHint(el: RawScanElement): string {
+  const text = el.textContent.trim();
+  if (!text) return '';
+  const first = text.split('\n')[0].trim();
+  if (first.length <= 40) return first;
+  return first.slice(0, 37) + '...';
+}
+
 // ── Main detector ──
 export function detectComponents(rawElements: RawScanElement[]): DetectedComponent[] {
   const components: DetectedComponent[] = [];
@@ -212,6 +221,7 @@ export function detectComponents(rawElements: RawScanElement[]): DetectedCompone
       reasoning: `data-component="${el.attributes['data-component'] || ''}" tag=${el.tagName}`,
       depth: el.depth,
       fullClassName: typeof el.className === 'string' ? el.className : '',
+      textHint: getTextHint(el),
     });
   }
 
@@ -246,6 +256,7 @@ export function detectComponents(rawElements: RawScanElement[]): DetectedCompone
         reasoning: `grid container with ${children.length} similar children`,
         depth: el.depth,
         fullClassName: typeof el.className === 'string' ? el.className : '',
+        textHint: getTextHint(el),
       });
 
       // Register each child as a card
@@ -263,6 +274,7 @@ export function detectComponents(rawElements: RawScanElement[]): DetectedCompone
           reasoning: `grid child card`,
           depth: child.depth,
           fullClassName: typeof child.className === 'string' ? child.className : '',
+          textHint: getTextHint(child),
         });
       }
     } else if ((el.childCount ?? 0) >= 2) {
@@ -280,6 +292,7 @@ export function detectComponents(rawElements: RawScanElement[]): DetectedCompone
         reasoning: `${layout} container`,
         depth: el.depth,
         fullClassName: typeof el.className === 'string' ? el.className : '',
+        textHint: getTextHint(el),
       });
     }
   }
@@ -307,6 +320,7 @@ export function detectComponents(rawElements: RawScanElement[]): DetectedCompone
       reasoning: `significant element (${el.boundingBox.width}x${el.boundingBox.height})`,
       depth: el.depth,
       fullClassName: typeof el.className === 'string' ? el.className : '',
+      textHint: getTextHint(el),
     });
   }
 

@@ -14,7 +14,7 @@ export default function CardGrid() {
         <p className="text-gray-400">Our most recent design work and case studies</p>
       </div>
 
-      <div className="grid grid-cols-3 gap-x-1 gap-y-8">
+      <div className="grid grid-cols-3 gap-x-1 gap-y-8 h-[448px]">
         <Card
           title="Brand Identity System"
           description="Complete visual identity redesign for a fintech startup, including logo, typography, and color system."

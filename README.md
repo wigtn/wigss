@@ -56,18 +56,35 @@ AI coding agents (Cursor, Claude Code, Trae) can scaffold UI fast. But **fine-tu
 
 ### 1. Scan
 
-Click **Scan** — the AI detects all UI components on the page and labels them (Navbar, Card, Footer, etc.).
+Hover the top arrow tab to reveal the toolbar. Click **Scan** — the AI detects all UI components on the page and labels them (Navbar, Card, Footer, etc.).
 
-### 2. Edit
+### 2. Browse & Select
 
-1. **Click** any component to select it
-2. **Drag** to move, **handle** to resize
-3. AI gives **real-time feedback** in the panel ("8px misaligned — fix it?")
-4. **Chat** with AI — "how should I fix the footer?" or just "알아서 해줘"
+Use the **Component Tag Bar** (top-left toggle) to browse all detected components. Each tag shows the component type, name, and a text preview so you know exactly what you're selecting. Hover a tag to highlight it on the canvas.
 
-### 3. Save
+### 3. Edit
 
-Click **Save** — AI generates Tailwind diffs → applies to source files → iframe reloads automatically.
+1. **Click** any component tag or overlay to select it
+2. **Drag** to move, **handles** to resize (8-directional)
+3. AI gives **real-time feedback** in the side panel ("8px misaligned — fix it?")
+4. **Chat** with AI — "how should I fix the footer?" or just ask freely
+
+### 4. Save
+
+Click **Save** — WIGSS generates code diffs across 4 CSS strategies and applies them to source files. The iframe reloads automatically.
+
+---
+
+## CSS Strategy Support
+
+WIGSS automatically detects which CSS approach your project uses and generates the right code:
+
+| Strategy | Detection | Example |
+|----------|-----------|---------|
+| **Tailwind CSS** | Utility class patterns in className | `className="flex h-48 w-64"` |
+| **CSS Modules** | `import styles from './X.module.css'` | `className={styles.card}` |
+| **Plain CSS** | Class found in `.css`/`.scss` files | `.hero { height: 400px; }` |
+| **Inline Styles** | Fallback for any React component | `style={{ height: '300px' }}` |
 
 ---
 
@@ -91,11 +108,11 @@ If no `--key` is provided and `OPENAI_API_KEY` is not set, WIGSS will **prompt i
 
 ## How It Works
 
-1. Runs a Next.js editor on port 4000 that wraps your dev server in an iframe
-2. Software-based DOM scan detects components and maps them to source files
-3. An overlay renders draggable/resizable boxes aligned to each component
+1. Runs a Next.js editor on port 4000 that wraps your dev server in an iframe (full viewport width)
+2. Software-based DOM scan detects components via postMessage and maps them to source files
+3. An overlay renders draggable/resizable boxes aligned to each component (60fps via requestAnimationFrame)
 4. Drag/resize events stream over WebSocket to the AI agent
-5. On Save, direct Tailwind class mapping generates a targeted diff and `fs` applies it to source
+5. On Save, multi-strategy CSS refactoring (Tailwind/CSS Module/Plain CSS/Inline) generates targeted diffs
 
 ---
 
@@ -107,7 +124,7 @@ If no `--key` is provided and `OPENAI_API_KEY` is not set, WIGSS will **prompt i
 | 2   | **Design Suggestions**  | GPT-4o  | After detection (with confidence scores) |
 | 3   | **Real-time Feedback**  | GPT-4o  | After drag/resize                        |
 | 4   | **Chat Consultation**   | GPT-4o  | User question or delegation              |
-| 5   | **Code Refactoring**    | Direct Tailwind mapping | On Save                    |
+| 5   | **Code Refactoring**    | Direct multi-strategy CSS mapping | On Save              |
 
 ### Why "Agent" Not "Tool"
 
@@ -124,7 +141,7 @@ If no `--key` is provided and `OPENAI_API_KEY` is not set, WIGSS will **prompt i
 
 - Node.js 18+
 - OpenAI API key (for GPT-4o analysis and suggestions)
-- A running dev server (React/Next.js + Tailwind recommended)
+- A running dev server (React/Next.js recommended)
 
 ---
 
@@ -132,11 +149,14 @@ If no `--key` is provided and `OPENAI_API_KEY` is not set, WIGSS will **prompt i
 
 ```
 Browser (localhost:4000)
-├── Floating Toolbar [Scan] [Save] [Mobile] [Undo/Redo]
-├── Visual Editor
-│   ├── iframe (your live page — read-only background)
-│   └── Overlay (draggable/resizable component boxes)
-└── Agent Panel
+├── Floating Toolbar (hover-reveal, hidden by default)
+│   └── [Scan] [Save] [Mobile] [Undo/Redo]
+├── Component Tag Bar (toggle, top-left)
+│   └── Clickable tags with type colors + text hints
+├── Visual Editor (full viewport)
+│   ├── iframe (your live page — full width, read-only)
+│   └── Overlay (draggable/resizable boxes, 60fps)
+└── Agent Panel (hover-reveal, right edge)
     ├── Real-time Feedback  → [Apply]
     ├── AI Suggestions      → [Apply] [Dismiss]
     └── Chat
@@ -145,65 +165,72 @@ Browser (localhost:4000)
     ▼
 WIGSS Agent (Node.js)
 ├── OpenAI GPT-4o  — suggestions, feedback, chat
-├── Direct Tailwind mapping — deterministic code refactoring
-└── fs             — source file read/write (with .bak backup)
+├── Multi-strategy CSS refactoring
+│   ├── Tailwind class mapping (TW_MAP)
+│   ├── CSS Module via PostCSS AST
+│   ├── Plain CSS via PostCSS AST
+│   └── Inline style via Babel AST
+└── fs             — source file read/write
 ```
 
 ### Data Flow
 
 ```
 [1] Scan
-    FloatingToolbar → ws.send('scan')
-                          │
-                    ws-server.ts (origin check + rate limit)
-                          │
-                    agent-loop.ts (queued via mutex)
-                      └─ ws.send('components_detected')
-                          │
-                    AgentStore → iframe.postMessage('wigss-scan-request')
-                          │
-                    iframe (your dev server)
-                      └─ DOM traversal → RawScanElement[]
-                      └─ postMessage('wigss-scan-result')
-                          │
+    Toolbar → ws.send('scan')
+                      │
+                ws-server.ts (origin check + rate limit)
+                      │
+                agent-loop.ts (queued via mutex)
+                  └─ ws.send('components_detected')
+                      │
+                AgentStore → iframe.postMessage('wigss-scan-request')
+                      │
+                iframe (your dev server)
+                  └─ DOM traversal → RawScanElement[]
+                  └─ postMessage('wigss-scan-result')
+                      │
 [2] Detect
     VisualEditor.tsx
       └─ component-detector.ts (pure software — no AI)
           ├─ Semantic tagging (nav, header, footer)
           ├─ Flex/grid layout analysis
           ├─ Repeated sibling detection (card grids)
-          └─ fullClassName extraction ← key for refactoring
-                          │
-                    EditorStore.setComponents()
-                    ws.send('components_synced')
-                          │
-                    openai-client.ts → suggestImprovements()
-                      └─ GPT-4o (function calling)
-                      └─ ws.send('suggestion')
+          ├─ fullClassName extraction
+          └─ textHint extraction (for component identification)
+                      │
+                EditorStore.setComponents()
+                ws.send('components_synced')
+                      │
+                openai-client.ts → suggestImprovements()
+                  └─ GPT-4o (function calling)
+                  └─ ws.send('suggestion')
 
 [3] Edit (drag/resize)
-    VisualEditor: handleMouseMove (throttled ~30fps)
+    VisualEditor: handleMouseMove (requestAnimationFrame, 60fps)
       ├─ EditorStore.setState() → visual update
-      └─ iframe.postMessage('wigss-live-style') → live preview
+      └─ iframe.postMessage('wigss-live-style') → live preview (move only)
     handleMouseUp
       ├─ EditorStore.applyChange() → history (max 50)
       └─ ws.send('drag_end' | 'resize_end')
-                          │
-                    openai-client.ts → provideFeedback()
-                      └─ GPT-4o → ws.send('feedback')
+                      │
+                openai-client.ts → provideFeedback()
+                  └─ GPT-4o → ws.send('feedback')
 
 [4] Save
-    FloatingToolbar
+    Toolbar
       ├─ POST /api/refactor {changes, components, projectPath}
-      │     └─ refactor-client.ts → directRefactor()
-      │         ├─ Line-based className matching via fullClassName
-      │         ├─ Tailwind class px↔token mapping (TW_MAP)
+      │     └─ refactor-client.ts → dispatchRefactor()
+      │         ├─ css-strategy-detector.ts → detect strategy
+      │         ├─ tailwind-strategy.ts (Tailwind class mapping)
+      │         ├─ css-module-strategy.ts (PostCSS AST)
+      │         ├─ plain-css-strategy.ts (PostCSS AST)
+      │         ├─ inline-style-strategy.ts (Babel AST)
       │         └─ Returns CodeDiff[] with line numbers
       │
       └─ POST /api/apply {diffs, projectPath}
             ├─ Path traversal prevention
             ├─ Diff validation (className/style only, no JS changes)
-            ├─ .bak backup creation
             └─ fs.writeFile → source modified
 
 [5] Reload
@@ -218,9 +245,19 @@ WIGSS Agent (Node.js)
 | Init | `instrumentation.ts` | Starts WS server + agent on boot |
 | Realtime | `ws` (port 4001) | Bidirectional event streaming |
 | AI | `openai` → GPT-4o | Suggestions, feedback, chat (function calling) |
-| Refactor | `refactor-client.ts` | Deterministic Tailwind mapping (no AI) |
+| Refactor | `refactor-client.ts` | Multi-strategy CSS refactoring (no AI) |
+| AST | `@babel/parser` + `postcss` | JSX/CSS parsing for precise code modification |
 | State | `zustand` (2 stores) | editor-store + agent-store |
 | Framework | `next` (App Router) | SSR + API routes + static pages |
+
+---
+
+## Limitations
+
+- **React JSX only** — Vue, Svelte, Angular are not yet supported
+- **Simple CSS selectors** — Compound selectors (`.card.active`) and pseudo-selectors (`:hover`) have basic support
+- **WebSocket security** — Origin validation + rate limiting only (no token auth)
+- **Single-user** — Designed for local development, not collaborative editing
 
 ---
 

@@ -22,7 +22,7 @@ export default function Card({
   return (
     <article
       data-component="card"
-      className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden hover:border-gray-700 transition-colors group w-[300px] ml-[32px]"
+      className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden hover:border-gray-700 transition-colors group w-[249px] ml-[32px]"
       style={{ marginRight }}
     >
       {imageUrl ? (

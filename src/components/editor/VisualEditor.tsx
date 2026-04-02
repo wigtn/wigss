@@ -6,9 +6,10 @@ import { useAgentStore } from '@/stores/agent-store';
 import { useShallow } from 'zustand/react/shallow';
 import type { BoundingBox, ComponentType, ComponentChange, DetectedComponent } from '@/types';
 import { detectComponents as detectFromDOM, type RawScanElement } from '@/lib/component-detector';
+import ComponentTagBar from './ComponentTagBar';
 
 // ── Colors by component type ──
-const TYPE_COLORS: Record<ComponentType, { stroke: string; fill: string; label: string }> = {
+export const TYPE_COLORS: Record<ComponentType, { stroke: string; fill: string; label: string }> = {
   navbar:  { stroke: '#22d3ee', fill: 'rgba(34,211,238,0.10)',  label: '#0891b2' },
   header:  { stroke: '#a78bfa', fill: 'rgba(167,139,250,0.10)', label: '#7c3aed' },
   hero:    { stroke: '#f59e0b', fill: 'rgba(245,158,11,0.10)',  label: '#d97706' },
@@ -158,52 +159,50 @@ export default function VisualEditor() {
       let { x, y, width: w, height: h } = sb;
       const dir = interaction.mode;
       if (dir.includes('e')) w = Math.max(20, sb.width + dx);
-      if (dir.includes('w')) { w = Math.max(20, sb.width - dx); x = sb.x + dx; }
+      if (dir.includes('w')) {
+        w = Math.max(20, sb.width - dx);
+        x = sb.x + (sb.width - w);
+      }
       if (dir.includes('s')) h = Math.max(20, sb.height + dy);
-      if (dir.includes('n')) { h = Math.max(20, sb.height - dy); y = sb.y + dy; }
+      if (dir.includes('n')) {
+        h = Math.max(20, sb.height - dy);
+        y = sb.y + (sb.height - h);
+      }
       return { x, y, width: w, height: h };
     };
 
-    let lastMoveTime = 0;
-    const THROTTLE_MS = 33; // ~30fps
+    let rafId = 0;
 
     const handleMouseMove = (e: MouseEvent) => {
-      const now = performance.now();
-      if (now - lastMoveTime < THROTTLE_MS) return;
-      lastMoveTime = now;
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        const newBox = calcNewBox(e);
+        const store = useEditorStore.getState();
+        const updated = store.components.map((c) =>
+          c.id === interaction.compId ? { ...c, boundingBox: newBox } : c
+        );
+        useEditorStore.setState({ components: updated });
 
-      const newBox = calcNewBox(e);
-      const store = useEditorStore.getState();
-      const updated = store.components.map((c) =>
-        c.id === interaction.compId ? { ...c, boundingBox: newBox } : c
-      );
-      useEditorStore.setState({ components: updated });
-
-      // Live preview: send style update to iframe
-      const comp = store.components.find(c => c.id === interaction.compId);
-      if (comp?.fullClassName && iframeRef.current?.contentWindow) {
-        const styles: Record<string, string> = {};
-        if (interaction.mode !== 'drag') {
-          // Resize: update width/height
-          if (newBox.width !== interaction.startBox.width) styles.width = `${newBox.width}px`;
-          if (newBox.height !== interaction.startBox.height) styles.height = `${newBox.height}px`;
-        } else {
-          // Move: update margin
-          const dy = newBox.y - interaction.startBox.y;
-          const dx = newBox.x - interaction.startBox.x;
-          if (Math.abs(dy) > 2) styles.marginTop = `${Math.max(0, dy)}px`;
-          if (Math.abs(dx) > 2) styles.marginLeft = `${Math.max(0, dx)}px`;
+        // Live preview: only for move (resize uses overlay only)
+        if (interaction.mode === 'drag') {
+          const comp = store.components.find(c => c.id === interaction.compId);
+          if (comp?.fullClassName && iframeRef.current?.contentWindow) {
+            const dy = newBox.y - interaction.startBox.y;
+            const dx = newBox.x - interaction.startBox.x;
+            const styles: Record<string, string> = {};
+            if (Math.abs(dy) > 2) styles.marginTop = `${Math.max(0, dy)}px`;
+            if (Math.abs(dx) > 2) styles.marginLeft = `${Math.max(0, dx)}px`;
+            if (Object.keys(styles).length > 0) {
+              const classKey = comp.fullClassName.split(' ').slice(0, 3).join(' ');
+              iframeRef.current.contentWindow.postMessage({
+                type: 'wigss-live-style',
+                className: classKey,
+                styles,
+              }, '*');
+            }
+          }
         }
-        if (Object.keys(styles).length > 0) {
-          // Use first 20 chars of className as unique identifier
-          const classKey = comp.fullClassName.split(' ').slice(0, 3).join(' ');
-          iframeRef.current.contentWindow.postMessage({
-            type: 'wigss-live-style',
-            className: classKey,
-            styles,
-          }, '*');
-        }
-      }
+      });
     };
 
     const handleMouseUp = (e: MouseEvent) => {
@@ -236,6 +235,7 @@ export default function VisualEditor() {
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
     return () => {
+      cancelAnimationFrame(rafId);
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
@@ -252,23 +252,25 @@ export default function VisualEditor() {
   );
 
   // Background threshold: elements covering >60% of viewport get subtle styling but remain clickable
-  const viewportArea = DESKTOP_WIDTH * Math.max(canvasHeight, 800);
+  const effectiveWidth = viewportMode === 'mobile' ? MOBILE_WIDTH : (viewportRef.current?.clientWidth || DESKTOP_WIDTH);
+  const viewportArea = effectiveWidth * Math.max(canvasHeight, 800);
   const areaThreshold = viewportArea * 0.6;
 
-  const fixedWidth = viewportMode === 'mobile' ? MOBILE_WIDTH : DESKTOP_WIDTH;
+  const fixedWidth = viewportMode === 'mobile' ? MOBILE_WIDTH : '100%';
 
   return (
     <div
-      className="relative flex-1 bg-gray-950 overflow-hidden flex items-start justify-center"
+      className="relative flex-1 bg-gray-950 overflow-hidden"
       onClick={() => selectRef.current(null)}
     >
+      <ComponentTagBar viewportRef={viewportRef} />
       <div
         ref={viewportRef}
         className="relative h-full overflow-auto"
       >
         {targetUrl ? (
           <div
-            className="relative min-h-full"
+            className={`relative min-h-full overflow-visible ${viewportMode === 'mobile' ? 'mx-auto' : ''}`}
             style={{ width: fixedWidth, height: canvasHeight > 0 ? canvasHeight : undefined }}
           >
             {/* Background: actual page */}
@@ -302,7 +304,7 @@ export default function VisualEditor() {
             {/* Overlay: draggable/resizable component boxes */}
             <div
               ref={overlayRef}
-              className="absolute inset-0"
+              className="absolute inset-0 overflow-visible"
               style={{ zIndex: 10 }}
             >
               {sortedComponents.map((comp, idx) => {
@@ -338,30 +340,38 @@ export default function VisualEditor() {
                       border: isSelected
                         ? `2.5px solid ${colors.stroke}`
                         : isHovered
-                          ? '2.5px solid #facc15'
+                          ? `3px solid ${colors.stroke}`
                           : isBackground
                             ? `1px dashed ${colors.stroke}40`
                             : `1px dashed ${colors.stroke}80`,
-                      backgroundColor: isHovered ? 'rgba(250, 204, 21, 0.08)' : 'transparent',
-                      boxShadow: isHovered ? '0 0 16px rgba(250, 204, 21, 0.5), 0 0 32px rgba(250, 204, 21, 0.2)' : 'none',
+                      backgroundColor: isHovered ? colors.fill.replace(/[\d.]+\)$/, '0.25)') : 'transparent',
+                      boxShadow: isHovered
+                        ? `0 0 20px ${colors.stroke}80, 0 0 40px ${colors.stroke}40, inset 0 0 30px ${colors.stroke}15`
+                        : 'none',
                       opacity: isBackground ? 0.3 : isHovered ? 1 : opacity,
                       cursor: isSelected ? (interaction?.compId === comp.id ? 'grabbing' : 'grab') : 'pointer',
                       boxSizing: 'border-box',
                       pointerEvents: 'auto',
-                      zIndex: isSelected ? 9999 : idx + 1,
+                      zIndex: isSelected ? 9999 : isHovered ? 9998 : idx + 1,
                       transition: interaction ? 'none' : 'all 0.15s ease',
+                      animation: isHovered && !isSelected ? 'wigss-pulse 1.5s ease-in-out infinite' : 'none',
                     }}
                   >
                     {/* Label */}
                     <span style={{
-                      position: 'absolute', top: -18, left: 0,
-                      fontSize: 9, color: '#fff', backgroundColor: colors.label,
-                      padding: '1px 4px', whiteSpace: 'nowrap',
-                      borderRadius: '2px 2px 0 0', opacity: 0.9,
+                      position: 'absolute', top: isHovered ? -22 : -18, left: 0,
+                      fontSize: isHovered ? 11 : 9, color: '#fff',
+                      backgroundColor: isHovered ? colors.stroke : colors.label,
+                      padding: isHovered ? '2px 8px' : '1px 4px', whiteSpace: 'nowrap',
+                      borderRadius: '3px 3px 0 0', opacity: isHovered ? 1 : 0.9,
                       maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis',
+                      fontWeight: isHovered ? 600 : 400,
+                      transition: 'all 0.15s ease',
+                      zIndex: isHovered ? 10 : 'auto',
                     }}>
                       {depth > 0 && <span style={{ opacity: 0.6 }}>{'·'.repeat(depth)} </span>}
                       {comp.name}
+                      {comp.textHint && <span style={{ opacity: 0.7, fontWeight: 400 }}> — {comp.textHint}</span>}
                     </span>
 
                     {/* Depth badge */}

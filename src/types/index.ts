@@ -23,6 +23,7 @@ export interface DetectedComponent {
   depth?: number;
   fullClassName?: string;
   cssInfo?: CssStrategyInfo;
+  textHint?: string;
 }
 
 // === CSS Strategy Types ===

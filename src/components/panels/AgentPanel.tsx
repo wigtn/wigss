@@ -11,25 +11,54 @@ import type { AgentFeedback, Suggestion, AgentLog } from '@/types';
 
 export default function AgentPanel() {
   const { status, connected } = useAgentStore();
+  const [open, setOpen] = useState(false);
 
   return (
-    <div className="w-80 bg-gray-900 border-l border-gray-800 flex flex-col h-full overflow-hidden">
-      {/* Status bar */}
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-800/60">
-        <div className={`w-2 h-2 rounded-full flex-shrink-0 ${connected ? 'bg-emerald-400' : 'bg-red-500'}`} />
-        <span className="text-xs text-gray-300 font-medium">
-          {connected ? 'Connected' : 'Disconnected'}
-        </span>
-        <span className="text-xs text-gray-500 mx-1">|</span>
-        <span className="text-xs text-gray-400 capitalize">{status}</span>
+    <div
+      className="fixed top-0 right-0 h-full z-40 overflow-visible"
+      style={{ width: 0 }}
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+    >
+      {/* Tab handle — pinned to right edge, extends left outside container */}
+      <div className="absolute top-1/2 -translate-y-1/2 -left-5 z-10">
+        <div className="w-5 h-10 flex items-center justify-center rounded-l-lg bg-purple-800/90 cursor-pointer hover:bg-purple-700 transition-colors">
+          <svg
+            width="12" height="12" viewBox="0 0 24 24" fill="none"
+            stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+            className={`transition-transform duration-300 ${open ? 'rotate-180' : ''}`}
+          >
+            <polyline points="15 6 9 12 15 18" />
+          </svg>
+        </div>
       </div>
 
-      {/* Scrollable content */}
-      <div className="flex-1 overflow-y-auto">
-        <FeedbackSection />
-        <SuggestionsSection />
-        <ChatSection />
-        <LogsSection />
+      {/* Panel — slides in from right */}
+      <div
+        className={`
+          absolute top-0 right-0 w-80 h-full
+          bg-gray-900 border-l border-gray-800 flex flex-col overflow-hidden
+          transition-transform duration-300 ease-out
+          ${open ? 'translate-x-0' : 'translate-x-full'}
+        `}
+      >
+        {/* Status bar */}
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-800/60">
+          <div className={`w-2 h-2 rounded-full flex-shrink-0 ${connected ? 'bg-emerald-400' : 'bg-red-500'}`} />
+          <span className="text-xs text-gray-300 font-medium">
+            {connected ? 'Connected' : 'Disconnected'}
+          </span>
+          <span className="text-xs text-gray-500 mx-1">|</span>
+          <span className="text-xs text-gray-400 capitalize">{status}</span>
+        </div>
+
+        {/* Scrollable content */}
+        <div className="flex-1 overflow-y-auto">
+          <FeedbackSection />
+          <SuggestionsSection />
+          <ChatSection />
+          <LogsSection />
+        </div>
       </div>
     </div>
   );

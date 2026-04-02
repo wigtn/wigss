@@ -11,11 +11,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **CLI entry**: `bin/cli.js` — `npx wigss --port <port>`, auto-detects cwd as source path
 - **Frontend**: Next.js 14 (App Router) + Tailwind CSS + Zustand
 - **Communication**: WebSocket (always connected, event-driven)
-- **Visual Editor**: iframe (target page) + fabric.js Canvas (object-based drag/resize)
+- **Visual Editor**: iframe (target page) + overlay (absolute-positioned component boxes with drag/resize)
 - **AI (observe/suggest/chat)**: OpenAI GPT-4o (Chat Completions + function calling)
 - **AI (refactor)**: Direct Tailwind class mapping (deterministic, no LLM)
-- **DOM Scan**: Playwright (headless Chrome)
-- **File Watch**: chokidar
+- **DOM Scan**: postMessage + component-detector.ts (software-based, no browser dependency)
 - **File I/O**: Node.js fs for source code read/write
 
 ## Key Directories
@@ -24,11 +23,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `demo-target/` — Sample web page for demo/testing (localhost:3001)
 - `src/app/api/ws/` — WebSocket endpoint
 - `src/app/api/apply/` — Source file modification (REST, for safety)
-- `src/components/editor/` — VisualEditor, ComponentOverlay, FloatingToolbar
+- `src/components/editor/` — VisualEditor, ComponentTagBar, FloatingToolbar
 - `src/components/panels/` — AgentPanel, ChatInterface, FeedbackCards, DiffPreview
 - `src/stores/` — Zustand (editor-store + agent-store)
 - `src/lib/agent/` — Agent loop, OpenAI client, refactor client, tools
-- `src/lib/` — playwright, file-utils, ws-server
+- `src/lib/` — component-detector, file-utils, ws-server, css-strategy-detector, postcss-utils, ast-utils
 
 ## Conventions
 
@@ -39,7 +38,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - API responses (REST): `{ success: boolean, data: {...} }` or `{ success: false, error: { code, message } }`
 - Component types: navbar, header, hero, grid, card, sidebar, footer, section, form, modal
 - AI calls: OpenAI GPT-4o for observe/suggest/chat; refactoring uses direct Tailwind class mapping (no LLM)
-- Canvas state tracked via fabric.js toJSON() snapshots
+- Canvas state tracked via component boundingBox snapshots
 
 ## Commands
 
