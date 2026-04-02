@@ -283,7 +283,7 @@ export default function VisualEditor() {
               ref={iframeRef}
               src={targetUrl}
               className="border-0 bg-white"
-              style={{ width: fixedWidth, height: canvasHeight > 0 ? canvasHeight : '100%', pointerEvents: 'none' }}
+              style={{ width: fixedWidth, height: canvasHeight > 0 ? canvasHeight : '100%', pointerEvents: 'none', overflow: 'hidden' }}
               title="Target page preview"
             />
 
@@ -355,7 +355,7 @@ export default function VisualEditor() {
                       cursor: isSelected ? (interaction?.compId === comp.id ? 'grabbing' : 'grab') : 'pointer',
                       boxSizing: 'border-box',
                       pointerEvents: 'auto',
-                      zIndex: isSelected ? 9999 : idx + 1,
+                      zIndex: idx + 1,
                       transition: interaction ? 'none' : 'all 0.15s ease',
                     }}
                   >

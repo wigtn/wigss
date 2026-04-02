@@ -14,7 +14,19 @@ import type {
   FeedbackSeverity,
 } from '@/types';
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+// Lazy-init: avoid crash when OPENAI_API_KEY is not set at import time
+let _openai: OpenAI | null = null;
+
+function getOpenAI(): OpenAI {
+  if (!_openai) {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      throw new Error('OPENAI_API_KEY is not set. AI features are disabled.');
+    }
+    _openai = new OpenAI({ apiKey });
+  }
+  return _openai;
+}
 
 // ---------------------------------------------------------------------------
 // OpenAI SDK v6 type helpers
@@ -91,7 +103,7 @@ Analyze the layout and call suggest_improvement for each design improvement you 
 Focus on spacing consistency, alignment issues, sizing problems, and visual hierarchy.`;
 
   const response = await withRetry(
-    () => openai.chat.completions.create({
+    () => getOpenAI().chat.completions.create({
       model: 'gpt-4o',
       messages: [
         { role: 'system', content: SUGGEST_SYSTEM_PROMPT },
@@ -180,7 +192,7 @@ If this change causes any layout issues (overlap, misalignment, inconsistent spa
 If the change looks fine, just respond with a confirmation message.`;
 
   const response = await withRetry(
-    () => openai.chat.completions.create({
+    () => getOpenAI().chat.completions.create({
       model: 'gpt-4o',
       messages: [
         { role: 'system', content: FEEDBACK_SYSTEM_PROMPT },
@@ -288,7 +300,7 @@ ${JSON.stringify(componentContext, null, 2)}
   }
 
   const response = await withRetry(
-    () => openai.chat.completions.create({
+    () => getOpenAI().chat.completions.create({
       model: 'gpt-4o',
       messages,
       tools: openaiTools.filter(
