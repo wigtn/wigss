@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+authors:
+  - name: "WIGTN Crew"
+    website: "https://wigtn.com"
+repository-code: "https://github.com/wigtn/wigss"
+url: "https://wigtn.com"
+abstract: "WIGSS (Style Shaper) — A visual code refactoring tool with an always-on AI agent. Frontend developers can visually drag and resize UI components on their live web page, and WIGSS automatically rewrites the source code to match."
+keywords:
+  - ai-native
+  - wigtn
+  - korea
+  - visual-editor
+  - code-refactoring
+  - tailwind-css
+  - ai-agent
+  - developer-tools
+license: Apache-2.0
