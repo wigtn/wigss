@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="https://raw.githubusercontent.com/wigtn/wigss/main/assets/wigtn-logo.png" alt="WIGTN Logo" width="240" />
+
 # WIGSS
 
 > UI 컴포넌트를 드래그하세요 — 소스 코드가 자동으로 바뀝니다.

@@ -1,15 +1,28 @@
 {
   "name": "wigss",
-  "version": "0.1.3",
-  "description": "WIGSS (Style Shaper) — visual code refactoring tool with always-on AI agent",
+  "version": "0.1.4",
+  "description": "WIGSS (Style Shaper) by WIGTN Crew — drag UI components and the source code rewrites itself. Visual code refactoring CLI with always-on AI agent. Supports Tailwind CSS, CSS Modules, and inline styles.",
   "license": "Apache-2.0",
-  "author": "Team WIGSS (WIGTN Crew)",
+  "author": "Harrison Kim <hyeongseob91@gmail.com> (WIGTN Crew)",
+  "contributors": [
+    "Harrison Kim",
+    "Jinmo Kim"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/wigtn/wigss"
   },
+  "homepage": "https://github.com/wigtn/wigss#readme",
+  "bugs": {
+    "url": "https://github.com/wigtn/wigss/issues"
+  },
+  "type": "module",
+  "main": "./bin/cli.js",
   "bin": {
     "wigss": "./bin/cli.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   },
   "scripts": {
     "dev": "concurrently \"next dev --port 4000\" \"pnpm --filter demo-target dev\"",
@@ -20,10 +33,35 @@
     "test:watch": "vitest"
   },
   "keywords": [
+    "wigss",
+    "wigtn",
+    "wigtn-crew",
+    "style-shaper",
     "ai",
+    "ai-agent",
     "agent",
     "visual-editor",
-    "refactoring"
+    "visual-code-editor",
+    "refactoring",
+    "code-refactoring",
+    "tailwind",
+    "tailwind-css",
+    "css-modules",
+    "drag-and-drop",
+    "ui-editor",
+    "component-editor",
+    "nextjs",
+    "react",
+    "frontend-tools",
+    "developer-tools",
+    "devtools",
+    "cli",
+    "design-to-code",
+    "low-code",
+    "live-preview",
+    "source-code-rewrite",
+    "openai",
+    "gpt-4o"
   ],
   "packageManager": "pnpm@10.28.1",
   "dependencies": {

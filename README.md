@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="https://raw.githubusercontent.com/wigtn/wigss/main/assets/wigtn-logo.png" alt="WIGTN Logo" width="240" />
+
 # WIGSS
 
 > Drag your UI components — the source code rewrites itself.

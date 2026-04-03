@@ -11,6 +11,9 @@ pnpm-workspace.yaml
 .env.local
 .env*.local
 
+# assets (logo etc — referenced via GitHub raw URL in README)
+assets/
+
 # dev-only directories
 demo-target/
 docs/
