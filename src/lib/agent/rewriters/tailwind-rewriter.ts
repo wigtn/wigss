@@ -191,38 +191,37 @@ export const tailwindRewriter: SourceRewriter = {
 
     if (modifiedClassName === fullClassName) return null;
 
-    // Prefer AST-span replacement: uses the exact source text of the className
-    // attribute value, which handles multi-line strings, template literals,
-    // single vs double quotes, and duplicate classNames in the same file.
+    // Prefer AST-span replacement: uses the exact source text of the
+    // className attribute value, which handles multi-line strings, template
+    // literals, single vs double quotes, and duplicate classNames in the
+    // same file. We always emit the FULL attribute (`className="..."`) as
+    // the diff boundary so the apply-route safety guards (which key off
+    // `className` / `style` substrings) accept the diff and the intent
+    // cannot ambiguously match a bare quoted value elsewhere in the file.
     let original: string;
     let modified: string;
 
     if (targetAttr) {
+      let newValueText: string;
       if (targetAttr.type === 'string-literal') {
-        original = targetAttr.valueText;
-        const quote = original[0];
-        modified = `${quote}${modifiedClassName}${quote}`;
+        const quote = targetAttr.valueText[0];
+        newValueText = `${quote}${modifiedClassName}${quote}`;
       } else if (targetAttr.type === 'template-literal') {
-        // Splice the fullClassName inside the template literal's static part.
         const replaced = targetAttr.valueText.replace(fullClassName, modifiedClassName);
         if (replaced === targetAttr.valueText) return null;
-        original = targetAttr.valueText;
-        modified = replaced;
+        newValueText = replaced;
       } else {
         // expression-based className (e.g. clsx(...)) — not safe to mutate
         return null;
       }
 
-      // Uniqueness guard: if valueText appears more than once, fall back to
-      // full-attribute splice (attribute start..end) to disambiguate.
-      const occurrences = targetSource.content.split(original).length - 1;
-      if (occurrences > 1) {
-        const fullAttrText = targetSource.content.slice(targetAttr.fullStart, targetAttr.fullEnd);
-        original = fullAttrText;
-        modified = fullAttrText.slice(0, targetAttr.valueStart - targetAttr.fullStart)
-          + modified
-          + fullAttrText.slice(targetAttr.valueEnd - targetAttr.fullStart);
-      }
+      const fullAttrText = targetSource.content.slice(targetAttr.fullStart, targetAttr.fullEnd);
+      original = fullAttrText;
+      modified =
+        fullAttrText.slice(0, targetAttr.valueStart - targetAttr.fullStart)
+        + newValueText
+        + fullAttrText.slice(targetAttr.valueEnd - targetAttr.fullStart);
+      if (modified === original) return null;
     } else {
       // Non-AST fallback path
       original = `className="${fullClassName}"`;

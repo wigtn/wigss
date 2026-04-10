@@ -206,12 +206,72 @@
 
 ---
 
+## Phase 6 (Post-PRD Follow-up): Runtime loop + stabilization
+
+> PRD 원문 이후 발견된 gap을 한 세션 안에서 추가로 메운 작업들.
+> v2.2의 runtime 완전성 + 품질 게이트 + 언어 무관성 foundation을 확장.
+
+### 6.1 Phase 5 Runtime endpoints (server side)
+- [x] `src/lib/apply-backup.ts` — in-memory TTL 백업 store, DI 가능한 factory
+- [x] `/api/apply` — 원본 저장 + 응답에 backupId 포함
+- [x] `/api/verify` — expectations + bboxes → FidelityReport
+- [x] `/api/rollback` — backupId로 원본 복원, one-shot 의미론
+- [x] 20 신규 테스트 (backup 8 + verify 6 + rollback 6)
+
+### 6.2 Editor runtime integration
+- [x] `agent-store`에 v2.2 fidelity state (backupId / expectations / reports / warning) 추가
+- [x] `FloatingToolbar` — save 시 priorBoxes 캡처 → apply → 재스캔 → verify 자동 호출
+- [x] `AgentPanel` — VerificationSection 카드 + rollback 버튼
+- [x] `src/lib/fidelity-client.ts` — capturePriorBoxes / buildExpectationsFromChanges / extractActualBoxes 순수 helper
+- [x] 16 신규 테스트 (fidelity-client 12 + agent-store 4)
+- [ ] (deferred) 편집 UI가 실제 color/font/border 수정을 trigger하는 단계 — 편집기 보조 UI 별도 작업
+
+### 6.3 Library internal cleanup (parallel agent)
+- [x] 4개 strategies/*.ts 로직을 rewriters/*.ts로 완전 이관
+- [x] `synth-from-intent.ts` 제거 (더 이상 필요 없음)
+- [x] `tailwind-utils.ts` 분리 (pxToTw / parseTwPx / findTwClass)
+- [x] `TargetLocator` orphan 인터페이스 제거
+
+### 6.4 Detector 확장 (template literal routing)
+- [x] `hasClassNameAttribute` helper + AST 우선 + literal substring fallback
+- [x] `detectCssStrategy` tailwind 브랜치 AST-aware로 전환
+- [x] `phase0-regressions.test.ts` — 3개 Phase 0 버그 클래스 pin-down (merge / line-count / AST span)
+
+### 6.5 Pre-existing 품질 게이트 수리
+- [x] `.eslintrc.json` 순환 참조 수정 — `eslint-config-next` 16.2.1 → ^14.2.35 (Next 14 버전 일치)
+- [x] `component-detector*.test.ts`의 `null` vs `undefined` + 제거된 `childIds` 필드 정리
+- [x] `tsc --noEmit` 0 errors, `pnpm lint` clean, `pnpm build` clean
+
+### 6.6 Scan payload 확장 (Goal B foundation)
+- [x] `demo-target/src/app/layout.tsx` — iframe scan payload에 color / backgroundColor / fontSize / fontWeight / borderColor / borderWidth / borderRadius / boxShadow 추가
+- [x] `RawScanElement.computedStyle` 타입 확장 (optional)
+- [x] `DetectedComponent.computedStyles` baseline 투영 — 이후 편집 시 diff 기준점
+- [x] 2 신규 테스트 (projection 성공 / 레이아웃만 있는 경우 생략)
+- [ ] (deferred) 편집기의 실제 color-picker UI — 데이터는 준비됨, UI 작업은 별도
+
+### 6.7 E2E fidelity loop test
+- [x] `fidelity-loop-e2e.test.ts` — tmpdir 기반 apply → verify → rollback 전체 경로
+  - Tailwind resize round-trip (rollback 후 byte-for-byte 복원)
+  - 기대치 drift → verify 실패 → rollback 복원
+  - CSS Module 크로스-파일 변경 round-trip
+- [x] E2E 테스트로 발견한 integration 버그 수정: tailwind rewriter의 AST-span diff이 `className=` prefix 없이 bare 값만 emit → apply 라우트 safety 가드(`original.includes('className')`)에 막힘. Rewriter가 항상 full attribute span을 사용하도록 수정.
+
+### 6.8 Docs + version bump
+- [x] `CHANGELOG.md` — v2.2 전체 릴리스 노트
+- [x] `README.md` — HTML+CSS 전략 + Fidelity Verification 섹션
+- [x] `CLAUDE.md` — 새 디렉터리 구조 + 규약 (camelCase, all-or-nothing rewriter)
+- [x] `package.json` — 0.1.4 → 0.2.0
+- [x] `vitest.config.ts` — `.claude/worktrees/**` exclude
+
 ## Progress
 
 | Metric | Value |
 |--------|-------|
-| Total Phases | 5/5 |
-| Tests | 294/294 (252 baseline + 42 new) |
+| Total Phases | 5/5 (PRD) + 8/8 (Phase 6 follow-up) |
+| Tests | 340/340 green (252 baseline + 88 new) |
+| Type check | 0 errors |
+| Lint | 0 errors |
+| Build | success |
 | Status | completed |
 
 ## Execution Log
@@ -220,10 +280,25 @@
 |-----------|-------|------|--------|
 | 2026-04-11 | Phase 0 | 버그 3종 수정 (merge-loss, line-count, AST span) | completed |
 | 2026-04-11 | Phase 1 | Intent types + adapter | completed (263 tests) |
-| 2026-04-11 | Phase 2 | Dispatcher + Rewriter 레이어 | completed (263 tests) |
+| 2026-04-11 | Phase 2 | Dispatcher + Rewriter 레이어 (wrapper) | completed (263 tests) |
 | 2026-04-11 | Phase 3 | HTML+CSS 전략 | completed (274 tests) |
 | 2026-04-11 | Phase 4 | Tailwind cleanup pass | completed (283 tests) |
 | 2026-04-11 | Phase 5 | Fidelity verification 코어 | completed (294 tests) |
+| 2026-04-11 | Phase 6.1 | Runtime endpoints (apply backup / verify / rollback) | completed (319 tests) |
+| 2026-04-11 | Phase 6.4 | Template literal routing fix | completed (319 tests) |
+| 2026-04-11 | Phase 6.3 | Library refactor (parallel agent) | completed (319 tests) |
+| 2026-04-11 | Phase 6.2 | Editor runtime integration (parallel agent) | completed (335 tests) |
+| 2026-04-11 | Phase 6.5 | ESLint + tsc + test file cleanup | completed (337 tests) |
+| 2026-04-11 | Phase 6.6 | Scan payload widening + computedStyles projection | completed (337 tests) |
+| 2026-04-11 | Phase 6.7 | E2E fidelity loop test + tailwind diff prefix fix | completed (340 tests) |
+| 2026-04-11 | Phase 6.8 | Docs + CHANGELOG + version 0.2.0 | completed |
+
+## Follow-up (outside v2.2)
+
+- Editor color picker / font picker UI (Goal B completion). Data pipeline is ready; only the UI surface + drag-start style snapshot are missing.
+- Iframe → editor protocol extension for targeted element style snapshots (if the cached baseline proves insufficient for some edit workflows).
+- `verify_request` / `verify_result` WS messages if the editor eventually wants server-driven verification instead of client-initiated (current flow has the editor POST directly to /api/verify).
+- v2.1 Breakpoint feature full landing (separate track; ~34% complete per its own PLAN).
 
 ## Dependencies
 

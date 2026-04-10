@@ -199,4 +199,63 @@ describe('component-detector: detectComponents', () => {
     const comps = detectComponents(elements);
     expect(comps).toHaveLength(0);
   });
+
+  it('projects non-layout computed styles (color, font, border) onto components', () => {
+    const elements: RawScanElement[] = [
+      makeElement({
+        id: 'hero-1',
+        tagName: 'section',
+        className: 'hero-banner flex',
+        boundingBox: { x: 0, y: 0, width: 1200, height: 400 },
+        attributes: { 'data-component': 'Hero' },
+        computedStyle: {
+          display: 'flex',
+          position: 'relative',
+          flexDirection: 'column',
+          color: 'rgb(31, 41, 55)',
+          backgroundColor: 'rgb(255, 255, 255)',
+          fontSize: '18px',
+          fontWeight: '600',
+          borderColor: 'rgb(229, 231, 235)',
+          borderWidth: '1px',
+          borderRadius: '12px',
+          boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+        },
+      }),
+    ];
+
+    const comps = detectComponents(elements);
+    const hero = comps.find((c) => c.elementIds[0] === 'hero-1');
+    expect(hero).toBeDefined();
+    expect(hero!.computedStyles).toEqual({
+      color: 'rgb(31, 41, 55)',
+      backgroundColor: 'rgb(255, 255, 255)',
+      fontSize: '18px',
+      fontWeight: '600',
+      borderColor: 'rgb(229, 231, 235)',
+      borderWidth: '1px',
+      borderRadius: '12px',
+      boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+    });
+  });
+
+  it('omits computedStyles when the raw element only carries layout styles', () => {
+    const elements: RawScanElement[] = [
+      makeElement({
+        id: 'plain',
+        tagName: 'section',
+        boundingBox: { x: 0, y: 0, width: 800, height: 200 },
+        attributes: { 'data-component': 'Hero' },
+        computedStyle: {
+          display: 'block',
+          position: 'relative',
+          flexDirection: '',
+        },
+      }),
+    ];
+    const comps = detectComponents(elements);
+    const plain = comps.find((c) => c.elementIds[0] === 'plain');
+    expect(plain).toBeDefined();
+    expect(plain!.computedStyles).toBeUndefined();
+  });
 });

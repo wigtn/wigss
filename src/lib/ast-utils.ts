@@ -32,20 +32,32 @@ export function findJsxAttributes(
 
   const results: JsxAttributeLocation[] = [];
 
-  function walk(node: any): void {
+  // Babel AST nodes are typed loosely at our walker boundary; we narrow
+  // via `type` discriminants and a minimal structural alias.
+  type AstNode = {
+    type?: string;
+    start?: number | null;
+    end?: number | null;
+    name?: { name?: string };
+    value?: AstNode;
+    expression?: AstNode;
+    [key: string]: unknown;
+  };
+
+  function walk(node: AstNode | null | undefined): void {
     if (!node || typeof node !== 'object') return;
 
     if (node.type === 'JSXAttribute' && node.name?.name === attributeName && node.value) {
       const value = node.value;
       let type: JsxAttributeLocation['type'] = 'string-literal';
-      let valueStart = value.start;
-      let valueEnd = value.end;
+      const valueStart = value.start ?? 0;
+      const valueEnd = value.end ?? 0;
 
       if (value.type === 'StringLiteral') {
         type = 'string-literal';
       } else if (value.type === 'JSXExpressionContainer') {
         const expr = value.expression;
-        if (expr.type === 'TemplateLiteral') {
+        if (expr?.type === 'TemplateLiteral') {
           type = 'template-literal';
         } else {
           type = 'expression';
@@ -56,8 +68,8 @@ export function findJsxAttributes(
         name: attributeName,
         valueStart,
         valueEnd,
-        fullStart: node.start,
-        fullEnd: node.end,
+        fullStart: node.start ?? 0,
+        fullEnd: node.end ?? 0,
         valueText: source.slice(valueStart, valueEnd),
         type,
       });
@@ -66,18 +78,18 @@ export function findJsxAttributes(
     // Walk all child nodes
     for (const key of Object.keys(node)) {
       if (key === 'start' || key === 'end' || key === 'loc' || key === 'type') continue;
-      const child = node[key];
+      const child = (node as Record<string, unknown>)[key];
       if (Array.isArray(child)) {
         for (const item of child) {
-          if (item && typeof item === 'object' && item.type) walk(item);
+          if (item && typeof item === 'object' && (item as AstNode).type) walk(item as AstNode);
         }
-      } else if (child && typeof child === 'object' && child.type) {
-        walk(child);
+      } else if (child && typeof child === 'object' && (child as AstNode).type) {
+        walk(child as AstNode);
       }
     }
   }
 
-  walk(ast.program);
+  walk(ast.program as unknown as AstNode);
   return results;
 }
 

@@ -8,7 +8,7 @@ import {
   capturePriorBoxes,
   extractActualBoxes,
 } from '@/lib/fidelity-client';
-import type { FidelityReport } from '@/types';
+import type { CodeDiff, FidelityReport } from '@/types';
 
 const STATUS_COLORS: Record<string, string> = {
   idle: 'bg-emerald-400',
@@ -177,7 +177,7 @@ export default function FloatingToolbar() {
 
         // Auto-apply immediately (no 2-step confirmation)
         const generatedDiffs = result.data.diffs;
-        const diffFiles = generatedDiffs.map((d: any) => d.file?.split('/').pop()).filter(Boolean).join(', ');
+        const diffFiles = (generatedDiffs as CodeDiff[]).map((d) => d.file?.split('/').pop()).filter(Boolean).join(', ');
         setSaveState('applying');
         setSaveMessage(`${generatedDiffs.length}개 변경 적용 중 (${diffFiles})...`);
         addLog('diff_preview', `Generated ${generatedDiffs.length} diff(s), auto-applying...`);

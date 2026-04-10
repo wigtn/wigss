@@ -24,6 +24,23 @@ export interface DetectedComponent {
   fullClassName?: string;
   cssInfo?: CssStrategyInfo;
   textHint?: string;
+  /**
+   * Snapshot of the component's current non-layout computed styles at scan
+   * time (color, typography, border, shadow). Populated by the iframe scan
+   * payload in v2.2+. The editor uses this as a baseline for future
+   * color-picker / typography edits — ComponentChange.targetStyles is the
+   * diff against this baseline.
+   */
+  computedStyles?: {
+    color?: string;
+    backgroundColor?: string;
+    fontSize?: string;
+    fontWeight?: string;
+    borderColor?: string;
+    borderWidth?: string;
+    borderRadius?: string;
+    boxShadow?: string;
+  };
 }
 
 // === CSS Strategy Types ===

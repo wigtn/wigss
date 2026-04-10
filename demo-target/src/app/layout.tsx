@@ -100,7 +100,18 @@ export default function RootLayout({
                         gridTemplateColumns: cs.gridTemplateColumns || '',
                         gap: cs.gap || '',
                         justifyContent: cs.justifyContent || '',
-                        alignItems: cs.alignItems || ''
+                        alignItems: cs.alignItems || '',
+                        // v2.2 fidelity-pipeline hints: non-layout properties
+                        // the editor can cache and later diff against user
+                        // edits (color picker / font picker UI is a follow-up).
+                        color: cs.color || '',
+                        backgroundColor: cs.backgroundColor || '',
+                        fontSize: cs.fontSize || '',
+                        fontWeight: cs.fontWeight || '',
+                        borderColor: cs.borderColor || cs.borderTopColor || '',
+                        borderWidth: cs.borderWidth || cs.borderTopWidth || '',
+                        borderRadius: cs.borderRadius || cs.borderTopLeftRadius || '',
+                        boxShadow: cs.boxShadow || ''
                       },
                       childCount: node.children.length,
                       parentId: parentId

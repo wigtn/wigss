@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useEditorStore } from '@/stores/editor-store';
 import { useAgentStore } from '@/stores/agent-store';
 import { useShallow } from 'zustand/react/shallow';
-import type { BoundingBox, ComponentType, ComponentChange, DetectedComponent } from '@/types';
+import type { BoundingBox, ComponentType, ComponentChange } from '@/types';
 import { detectComponents as detectFromDOM, type RawScanElement } from '@/lib/component-detector';
 import ComponentTagBar from './ComponentTagBar';
 
@@ -36,14 +36,6 @@ function depthOpacity(depth: number): number {
 // ── Resize handle positions ──
 const HANDLES = ['nw', 'ne', 'sw', 'se', 'n', 's', 'e', 'w'] as const;
 type HandleDir = typeof HANDLES[number];
-
-function handleCursor(dir: HandleDir): string {
-  const map: Record<HandleDir, string> = {
-    nw: 'nw-resize', ne: 'ne-resize', sw: 'sw-resize', se: 'se-resize',
-    n: 'n-resize', s: 's-resize', e: 'e-resize', w: 'w-resize',
-  };
-  return map[dir];
-}
 
 function handleStyle(dir: HandleDir): React.CSSProperties {
   const size = 8;

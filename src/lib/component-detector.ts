@@ -26,6 +26,7 @@ export interface RawScanElement {
   childCount?: number;
   parentId?: string;
   computedStyle?: {
+    // Layout (used by detectComponents to infer containers)
     display: string;
     position: string;
     flexDirection: string;
@@ -33,6 +34,17 @@ export interface RawScanElement {
     gap?: string;
     justifyContent?: string;
     alignItems?: string;
+    // v2.2 fidelity-pipeline hints — optional, populated by the iframe
+    // scan payload so the editor can diff against user edits without a
+    // follow-up round-trip. Not currently consumed by detectComponents.
+    color?: string;
+    backgroundColor?: string;
+    fontSize?: string;
+    fontWeight?: string;
+    borderColor?: string;
+    borderWidth?: string;
+    borderRadius?: string;
+    boxShadow?: string;
   };
 }
 
@@ -329,6 +341,31 @@ export function detectComponents(rawElements: RawScanElement[]): DetectedCompone
     if ((a.depth ?? 0) !== (b.depth ?? 0)) return (a.depth ?? 0) - (b.depth ?? 0);
     return a.boundingBox.y - b.boundingBox.y;
   });
+
+  // v2.2: project non-layout computed styles (color, typography, border,
+  // shadow) from the raw element onto each DetectedComponent so the editor
+  // has a baseline for future color-picker / font edits. Layout properties
+  // are intentionally excluded — they already drive detection, and the
+  // fidelity pipeline handles them via bounding-box deltas.
+  const rawById = new Map<string, RawScanElement>();
+  for (const el of rawElements) rawById.set(el.id, el);
+  for (const comp of components) {
+    const primary = rawById.get(comp.elementIds[0]);
+    const cs = primary?.computedStyle;
+    if (!cs) continue;
+    const snapshot: DetectedComponent['computedStyles'] = {};
+    if (cs.color) snapshot.color = cs.color;
+    if (cs.backgroundColor) snapshot.backgroundColor = cs.backgroundColor;
+    if (cs.fontSize) snapshot.fontSize = cs.fontSize;
+    if (cs.fontWeight) snapshot.fontWeight = cs.fontWeight;
+    if (cs.borderColor) snapshot.borderColor = cs.borderColor;
+    if (cs.borderWidth) snapshot.borderWidth = cs.borderWidth;
+    if (cs.borderRadius) snapshot.borderRadius = cs.borderRadius;
+    if (cs.boxShadow) snapshot.boxShadow = cs.boxShadow;
+    if (Object.keys(snapshot).length > 0) {
+      comp.computedStyles = snapshot;
+    }
+  }
 
   return components;
 }
