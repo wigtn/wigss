@@ -1,7 +1,30 @@
 import path from 'path';
 import type { DetectedComponent, CssStrategyInfo } from '@/types';
+import { findClassNameAttribute } from '@/lib/ast-utils';
 
 type SourceInput = { path: string; content: string };
+
+/**
+ * Check whether any source file contains a JSX className attribute whose value
+ * matches the given className. Uses the AST helper so template literals,
+ * multi-line attributes, and single-quoted strings all match — not just the
+ * literal `className="..."` substring the old detector relied on. Falls back
+ * to a literal substring scan when the AST fails to parse (e.g. intentionally
+ * malformed fixtures in tests, or files containing syntax errors).
+ */
+function hasClassNameAttribute(sources: SourceInput[], className: string): boolean {
+  for (const src of sources) {
+    if (!src.path.endsWith('.tsx') && !src.path.endsWith('.jsx')) continue;
+    if (findClassNameAttribute(src.content, className)) return true;
+    if (
+      src.content.includes(`className="${className}"`) ||
+      src.content.includes(`className='${className}'`)
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
 
 // Tailwind utility prefixes that indicate Tailwind usage
 const TW_PATTERNS = /(?:^|\s)(?:flex|grid|block|inline|hidden|p-|m-|w-|h-|text-|bg-|border-|rounded|shadow|gap-|space-|items-|justify-|overflow-|z-|opacity-|transition|animate-|font-|leading-|tracking-|absolute|relative|fixed|sticky)/;
@@ -81,12 +104,11 @@ export function detectCssStrategy(
     };
   }
 
-  // 1. Check Tailwind: className="..." with Tailwind utilities in source
+  // 1. Check Tailwind: AST-aware className attribute lookup.
+  // Handles `className="..."`, `className={'...'}`, and template literals.
   if (fullClassName && isTailwindClassName(fullClassName)) {
-    for (const src of sources) {
-      if (src.content.includes(`className="${fullClassName}"`)) {
-        return { strategy: 'tailwind' };
-      }
+    if (hasClassNameAttribute(sources, fullClassName)) {
+      return { strategy: 'tailwind' };
     }
   }
 
