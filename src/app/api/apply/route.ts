@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import path from 'path';
 import type { CodeDiff } from '@/types';
 import { isPathSafe, readSourceFile, writeSourceFile } from '@/lib/file-utils';
+import { defaultBackupStore, type BackupFile } from '@/lib/apply-backup';
 
 function applyDiff(content: string, diff: CodeDiff): { ok: true; content: string } | { ok: false; reason: string } {
   const original = diff.original ?? '';
@@ -119,6 +120,7 @@ export async function POST(req: NextRequest) {
 
     const filesChanged: string[] = [];
     const failed: { file: string; reason: string }[] = [];
+    const backupFiles: BackupFile[] = [];
     let applied = 0;
 
     for (const [file, fileDiffs] of diffsByFile.entries()) {
@@ -128,12 +130,13 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      let content = '';
+      let originalContent = '';
       try {
-        content = await readSourceFile(absolutePath);
+        originalContent = await readSourceFile(absolutePath);
       } catch {
-        content = '';
+        originalContent = '';
       }
+      let content = originalContent;
 
       let fileAppliedCount = 0;
       for (const diff of fileDiffs) {
@@ -150,6 +153,9 @@ export async function POST(req: NextRequest) {
       }
 
       if (fileAppliedCount > 0) {
+        // Capture the prior contents *before* writing so /api/rollback can
+        // restore verbatim if the editor's fidelity verification fails.
+        backupFiles.push({ path: absolutePath, originalContent });
         await writeSourceFile(absolutePath, content);
         filesChanged.push(file);
         console.log(`[Apply] Written ${file}: ${fileAppliedCount} diff(s) applied`);
@@ -170,12 +176,22 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Register a rollback point for the files that were actually modified.
+    // The editor receives the backupId and can POST it to /api/rollback after
+    // re-measuring components if fidelity verification detects a mismatch.
+    let backupId: string | null = null;
+    if (backupFiles.length > 0) {
+      const entry = defaultBackupStore.create(backupFiles);
+      backupId = entry.id;
+    }
+
     return NextResponse.json({
       success: true,
       data: {
         applied,
         filesChanged,
         failed,
+        backupId,
         message: `Applied ${applied} diffs across ${filesChanged.length} file(s)`,
       },
     });
