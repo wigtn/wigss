@@ -1,5 +1,5 @@
 import type { CodeDiff, ComponentChange, DetectedComponent } from '@/types';
-import { findClassNameAttribute } from '@/lib/ast-utils';
+import { findClassNameAttribute, type JsxAttributeLocation } from '@/lib/ast-utils';
 
 export type SourceInput = { path: string; content: string };
 
@@ -45,10 +45,12 @@ export function refactorTailwind(
   // AST-based: find className attribute precisely (handles multi-line, template literals)
   let targetSource: SourceInput | null = null;
   let targetLineNumber = 0;
+  let targetAttr: JsxAttributeLocation | null = null;
   for (const src of sources) {
     const attr = findClassNameAttribute(src.content, fullClassName);
     if (attr) {
       targetSource = src;
+      targetAttr = attr;
       // Calculate line number from character position
       targetLineNumber = src.content.slice(0, attr.fullStart).split('\n').length;
       break;
@@ -81,7 +83,7 @@ export function refactorTailwind(
   const additions: string[] = [];
   const explanation: string[] = [];
 
-  if (change.type === 'resize') {
+  {
     const dw = (change.to.width ?? 0) - (change.from.width ?? 0);
     const dh = (change.to.height ?? 0) - (change.from.height ?? 0);
 
@@ -130,7 +132,7 @@ export function refactorTailwind(
     }
   }
 
-  if (change.type === 'move') {
+  {
     const dy = (change.to.y ?? 0) - (change.from.y ?? 0);
     const dx = (change.to.x ?? 0) - (change.from.x ?? 0);
 
@@ -197,15 +199,49 @@ export function refactorTailwind(
 
   if (modifiedClassName === fullClassName) return null;
 
-  const originalLine = `className="${fullClassName}"`;
-  const modifiedLine = `className="${modifiedClassName}"`;
+  // Prefer AST-span replacement: uses the exact source text of the className
+  // attribute value, which handles multi-line strings, template literals,
+  // single vs double quotes, and duplicate classNames in the same file.
+  let original: string;
+  let modified: string;
 
-  if (!targetSource.content.includes(originalLine)) return null;
+  if (targetAttr) {
+    if (targetAttr.type === 'string-literal') {
+      original = targetAttr.valueText;
+      const quote = original[0];
+      modified = `${quote}${modifiedClassName}${quote}`;
+    } else if (targetAttr.type === 'template-literal') {
+      // Splice the fullClassName inside the template literal's static part.
+      const replaced = targetAttr.valueText.replace(fullClassName, modifiedClassName);
+      if (replaced === targetAttr.valueText) return null;
+      original = targetAttr.valueText;
+      modified = replaced;
+    } else {
+      // expression-based className (e.g. clsx(...)) — not safe to mutate
+      return null;
+    }
+
+    // Uniqueness guard: if valueText appears more than once, fall back to
+    // full-attribute splice (attribute start..end) to disambiguate.
+    const occurrences = targetSource.content.split(original).length - 1;
+    if (occurrences > 1) {
+      const fullAttrText = targetSource.content.slice(targetAttr.fullStart, targetAttr.fullEnd);
+      original = fullAttrText;
+      modified = fullAttrText.slice(0, targetAttr.valueStart - targetAttr.fullStart)
+        + modified
+        + fullAttrText.slice(targetAttr.valueEnd - targetAttr.fullStart);
+    }
+  } else {
+    // Non-AST fallback path
+    original = `className="${fullClassName}"`;
+    modified = `className="${modifiedClassName}"`;
+    if (!targetSource.content.includes(original)) return null;
+  }
 
   return {
     file: targetSource.path,
-    original: originalLine,
-    modified: modifiedLine,
+    original,
+    modified,
     lineNumber: targetLineNumber,
     explanation: explanation.join(', '),
     strategy: 'tailwind',

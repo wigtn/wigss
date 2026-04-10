@@ -21,11 +21,65 @@ export function findCssModuleImport(sourceContent: string): { binding: string; p
   return null;
 }
 
+/**
+ * Extract linked stylesheet hrefs from an HTML document.
+ * Matches `<link rel="stylesheet" href="...">` in any order of attributes.
+ */
+export function findLinkedStylesheets(htmlContent: string): string[] {
+  const hrefs: string[] = [];
+  const linkRegex = /<link\b[^>]*?>/gi;
+  let match: RegExpExecArray | null;
+  while ((match = linkRegex.exec(htmlContent))) {
+    const tag = match[0];
+    if (!/rel\s*=\s*["']stylesheet["']/i.test(tag)) continue;
+    const hrefMatch = tag.match(/href\s*=\s*["']([^"']+)["']/i);
+    if (hrefMatch) hrefs.push(hrefMatch[1]);
+  }
+  return hrefs;
+}
+
 export function detectCssStrategy(
   component: DetectedComponent,
   sources: SourceInput[],
 ): CssStrategyInfo {
   const fullClassName = component.fullClassName || '';
+  const sourceFile = component.sourceFile || '';
+  const isHtmlSource = sourceFile.endsWith('.html') || sourceFile.endsWith('.htm');
+
+  // 0. HTML source: short-circuit to html-css strategy
+  if (isHtmlSource) {
+    const htmlSrc = sources.find((s) => s.path === sourceFile);
+    let stylesheetPath: string | undefined;
+    let cssClassName: string | undefined;
+    const firstClass = fullClassName.split(/\s+/)[0];
+    if (htmlSrc && firstClass) {
+      const linked = findLinkedStylesheets(htmlSrc.content);
+      for (const href of linked) {
+        const match = sources.find(
+          (s) => s.path === href || s.path.endsWith(`/${href}`) || s.path.endsWith(href),
+        );
+        if (match && match.content.includes(`.${firstClass}`)) {
+          stylesheetPath = match.path;
+          break;
+        }
+      }
+      if (!stylesheetPath) {
+        // Fall back to first stylesheet whose content mentions the class
+        const candidate = sources.find(
+          (s) =>
+            (s.path.endsWith('.css') || s.path.endsWith('.scss')) &&
+            s.content.includes(`.${firstClass}`),
+        );
+        if (candidate) stylesheetPath = candidate.path;
+      }
+      cssClassName = firstClass;
+    }
+    return {
+      strategy: 'html-css',
+      stylesheetPath,
+      cssClassName,
+    };
+  }
 
   // 1. Check Tailwind: className="..." with Tailwind utilities in source
   if (fullClassName && isTailwindClassName(fullClassName)) {

@@ -1,67 +1,80 @@
-import type { CodeDiff, ComponentChange, DetectedComponent } from '@/types';
+import type {
+  CodeDiff,
+  ComponentChange,
+  DetectedComponent,
+  FidelityExpectation,
+  SourceInput,
+  StyleIntent,
+} from '@/types';
 import { detectCssStrategy } from '@/lib/css-strategy-detector';
-import { refactorTailwind, type SourceInput } from './strategies/tailwind-strategy';
-import { refactorInlineStyle } from './strategies/inline-style-strategy';
-import { refactorCssModule } from './strategies/css-module-strategy';
-import { refactorPlainCss } from './strategies/plain-css-strategy';
+import { changesToIntents } from './intent-adapter';
+import { dispatchIntent } from './dispatcher';
+import { intentToExpectation } from './verify/fidelity-check';
 
 export type { SourceInput };
 
-function dispatchRefactor(
-  change: ComponentChange,
-  component: DetectedComponent,
-  sources: SourceInput[],
-): CodeDiff | null {
-  const cssInfo = component.cssInfo ?? detectCssStrategy(component, sources);
-
-  switch (cssInfo.strategy) {
-    case 'tailwind':
-      return refactorTailwind(change, component, sources);
-    case 'inline-style':
-      return refactorInlineStyle(change, component, sources);
-    case 'css-module':
-      return refactorCssModule(change, component, sources, cssInfo);
-    case 'plain-css':
-      return refactorPlainCss(change, component, sources, cssInfo);
-    default:
-      // Universal fallback: inline style
-      return refactorInlineStyle(change, component, sources);
-  }
-}
-
+/**
+ * Generate code diffs for a batch of ComponentChanges.
+ *
+ * Pipeline (v2.2):
+ *   ComponentChange[] → merge → StyleIntent[] → dispatchIntent → CodeDiff[]
+ *
+ * CSS strategy detection runs here (not in the adapter) because it needs
+ * access to the source files, and the result is passed through
+ * `intent.sourceHint.cssStrategy` to downstream rewriters.
+ */
 export async function generateRefactorDiffs(input: {
   changes: ComponentChange[];
   components: DetectedComponent[];
   sources: SourceInput[];
 }): Promise<CodeDiff[]> {
-  const componentMap = new Map(input.components.map((c) => [c.id, c]));
+  const { diffs } = await generateRefactorResult(input);
+  return diffs;
+}
 
-  const latestChanges = new Map<string, ComponentChange>();
-  for (const change of input.changes) {
-    latestChanges.set(change.componentId, change);
+/**
+ * Richer variant of `generateRefactorDiffs` that also returns the fidelity
+ * expectations for each successful diff. Editor callers that want to run the
+ * post-apply verification loop should use this instead.
+ */
+export async function generateRefactorResult(input: {
+  changes: ComponentChange[];
+  components: DetectedComponent[];
+  sources: SourceInput[];
+}): Promise<{ diffs: CodeDiff[]; expectations: FidelityExpectation[] }> {
+  const componentMap = new Map<string, DetectedComponent>();
+  for (const component of input.components) {
+    // Ensure each component has a resolved cssInfo before intent construction.
+    // This preserves the existing `component.cssInfo ?? detectCssStrategy(...)` behaviour.
+    const enriched: DetectedComponent = {
+      ...component,
+      cssInfo: component.cssInfo ?? detectCssStrategy(component, input.sources),
+    };
+    componentMap.set(component.id, enriched);
   }
 
+  const intents: StyleIntent[] = changesToIntents(input.changes, componentMap);
+
   const diffs: CodeDiff[] = [];
-  const failedChanges: ComponentChange[] = [];
+  const expectations: FidelityExpectation[] = [];
+  const failed: StyleIntent[] = [];
 
-  for (const change of latestChanges.values()) {
-    const component = componentMap.get(change.componentId);
-    if (!component) continue;
-
-    const diff = dispatchRefactor(change, component, input.sources);
+  for (const intent of intents) {
+    const diff = dispatchIntent(intent, input.sources);
     if (diff) {
       diffs.push(diff);
+      expectations.push(
+        intentToExpectation(intent, intent.sourceHint?.file ?? diff.file),
+      );
     } else {
-      failedChanges.push(change);
+      failed.push(intent);
     }
   }
 
-  console.log(`[Refactor] ${diffs.length} diffs generated. ${failedChanges.length} skipped.`);
-
-  for (const change of failedChanges) {
-    const comp = componentMap.get(change.componentId);
-    console.log(`[Refactor] Skipped: ${comp?.name || change.componentId}`);
+  console.log(`[Refactor] ${diffs.length} diffs generated. ${failed.length} skipped.`);
+  for (const intent of failed) {
+    console.log(`[Refactor] Skipped: ${intent.sourceHint?.componentName ?? intent.componentId}`);
   }
 
-  return diffs;
+  return { diffs, expectations };
 }

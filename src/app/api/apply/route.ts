@@ -11,13 +11,6 @@ function applyDiff(content: string, diff: CodeDiff): { ok: true; content: string
     return { ok: false, reason: 'Rejected: empty original or modified' };
   }
 
-  // Safety: line count must match (no structural changes)
-  const origLines = original.split('\n').length;
-  const modLines = modified.split('\n').length;
-  if (origLines !== modLines) {
-    return { ok: false, reason: `Rejected: line count changed (${origLines}→${modLines})` };
-  }
-
   // Safety: must contain className or style (CSS-only changes)
   // For .css/.scss files, skip this check (CSS properties don't have className/style)
   const isCssFile = diff.file.endsWith('.css') || diff.file.endsWith('.scss');
