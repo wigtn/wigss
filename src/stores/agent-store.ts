@@ -3,7 +3,10 @@ import type {
   AgentStatus,
   AgentLog,
   AgentFeedback,
+  BoundingBox,
   ChatMessage,
+  FidelityExpectation,
+  FidelityReport,
   VerificationResult,
   Suggestion,
 } from '@/types';
@@ -25,8 +28,15 @@ interface AgentState {
   // Chat
   chatMessages: ChatMessage[];
 
-  // Verification
+  // Verification (legacy v2.1 shape, retained for compatibility)
   verification: VerificationResult | null;
+
+  // v2.2 Fidelity verification state
+  lastBackupId: string | null;
+  lastExpectations: FidelityExpectation[];
+  lastPriorBoxes: Record<string, BoundingBox>;
+  verificationReports: FidelityReport[] | null;
+  verificationWarning: string | null;
 
   // Demo mode
   isDemoMode: boolean;
@@ -54,6 +64,16 @@ interface AgentState {
 
   setVerification: (result: VerificationResult | null) => void;
   setDemoMode: (isDemoMode: boolean) => void;
+
+  // v2.2 Fidelity verification actions
+  setApplyResult: (
+    backupId: string | null,
+    expectations: FidelityExpectation[],
+    priorBoxes: Record<string, BoundingBox>,
+  ) => void;
+  setVerificationReports: (reports: FidelityReport[] | null) => void;
+  clearVerification: () => void;
+  setVerificationWarning: (msg: string | null) => void;
 
   // WebSocket send helper
   sendMessage: (type: string, payload: unknown) => void;
@@ -83,6 +103,11 @@ const initialState = {
   suggestions: [],
   chatMessages: [],
   verification: null,
+  lastBackupId: null,
+  lastExpectations: [],
+  lastPriorBoxes: {},
+  verificationReports: null,
+  verificationWarning: null,
   isDemoMode: false,
   _reconnectTimer: null,
   _reconnectAttempts: 0,
@@ -149,6 +174,28 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   setVerification: (result) => set({ verification: result }),
 
   setDemoMode: (isDemoMode) => set({ isDemoMode }),
+
+  setApplyResult: (backupId, expectations, priorBoxes) =>
+    set({
+      lastBackupId: backupId,
+      lastExpectations: expectations,
+      lastPriorBoxes: priorBoxes,
+      verificationReports: null,
+      verificationWarning: null,
+    }),
+
+  setVerificationReports: (reports) => set({ verificationReports: reports }),
+
+  clearVerification: () =>
+    set({
+      lastBackupId: null,
+      lastExpectations: [],
+      lastPriorBoxes: {},
+      verificationReports: null,
+      verificationWarning: null,
+    }),
+
+  setVerificationWarning: (msg) => set({ verificationWarning: msg }),
 
   sendMessage: (type, payload) => {
     const { ws, connected } = get();
