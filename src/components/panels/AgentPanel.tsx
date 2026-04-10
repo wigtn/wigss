@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useEditorStore } from '@/stores/editor-store';
 import { useAgentStore } from '@/stores/agent-store';
-import type { AgentFeedback, Suggestion, AgentLog } from '@/types';
+import type { AgentFeedback, Suggestion, AgentLog, FidelityReport } from '@/types';
 
 // ---------------------------------------------------------------------------
 // AgentPanel (main export)
@@ -54,6 +54,7 @@ export default function AgentPanel() {
 
         {/* Scrollable content */}
         <div className="flex-1 overflow-y-auto">
+          <VerificationSection />
           <FeedbackSection />
           <SuggestionsSection />
           <ChatSection />
@@ -61,6 +62,152 @@ export default function AgentPanel() {
         </div>
       </div>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// VerificationSection (v2.2 fidelity pipeline)
+// ---------------------------------------------------------------------------
+
+function VerificationSection() {
+  const verificationReports = useAgentStore((s) => s.verificationReports);
+  const verificationWarning = useAgentStore((s) => s.verificationWarning);
+  const lastBackupId = useAgentStore((s) => s.lastBackupId);
+  const clearVerification = useAgentStore((s) => s.clearVerification);
+  const setVerificationWarning = useAgentStore((s) => s.setVerificationWarning);
+  const addLog = useAgentStore((s) => s.addLog);
+  const sendMessage = useAgentStore((s) => s.sendMessage);
+  const targetUrl = useEditorStore((s) => s.targetUrl);
+  const projectPath = useEditorStore((s) => s.projectPath);
+  const [rollingBack, setRollingBack] = useState(false);
+
+  const failedReports =
+    verificationReports?.filter((r: FidelityReport) => !r.passed) ?? [];
+  const hasFailures = failedReports.length > 0;
+
+  // Nothing to show
+  if (!verificationWarning && !hasFailures) return null;
+
+  const handleRollback = async () => {
+    if (!lastBackupId || rollingBack) return;
+    setRollingBack(true);
+    try {
+      const response = await fetch('/api/rollback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ backupId: lastBackupId }),
+      });
+      const result = (await response.json()) as {
+        success: boolean;
+        data?: { restored: string[]; message: string };
+        error?: { message?: string };
+      };
+
+      if (!response.ok || !result.success) {
+        const msg = result.error?.message || `rollback failed (HTTP ${response.status})`;
+        setVerificationWarning(msg);
+        addLog('rollback_error', msg);
+        return;
+      }
+
+      addLog('rollback_done', result.data?.message ?? 'Rolled back');
+      clearVerification();
+
+      // Reload iframe + re-scan so the editor reflects the restored files.
+      setTimeout(() => {
+        const iframes = document.querySelectorAll('iframe');
+        for (const iframe of Array.from(iframes)) {
+          try {
+            iframe.contentWindow?.location.reload();
+          } catch {
+            /* ignore */
+          }
+        }
+      }, 500);
+      setTimeout(() => {
+        sendMessage('scan', {
+          url: targetUrl,
+          projectPath: projectPath || 'auto',
+        });
+      }, 2500);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error('[VerificationSection] rollback failed:', err);
+      setVerificationWarning(`롤백 호출 실패: ${msg}`);
+      addLog('rollback_error', msg);
+    } finally {
+      setRollingBack(false);
+    }
+  };
+
+  const handleDismiss = () => {
+    clearVerification();
+  };
+
+  return (
+    <PanelSection title="검증" count={failedReports.length || undefined}>
+      <div
+        className="p-3 rounded-lg border text-xs bg-amber-950/40 border-amber-800/50"
+      >
+        <div className="flex items-center gap-1.5 mb-1.5">
+          <WarningIcon />
+          <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-900/60 text-amber-300">
+            fidelity
+          </span>
+        </div>
+
+        {verificationWarning && (
+          <p className="text-[11px] text-gray-300 leading-relaxed mb-2">
+            {verificationWarning}
+          </p>
+        )}
+
+        {hasFailures && (
+          <div className="mb-2 space-y-1.5">
+            {failedReports.map((report: FidelityReport) => (
+              <div
+                key={report.componentId}
+                className="p-2 rounded bg-black/30 border border-amber-900/40"
+              >
+                <p className="text-[10px] font-mono text-amber-200 mb-1 truncate">
+                  {report.componentId.replace('comp-', '')}
+                </p>
+                <ul className="space-y-0.5">
+                  {report.mismatches.map((m, i) => (
+                    <li
+                      key={`${m.property}-${i}`}
+                      className="text-[10px] text-gray-400 font-mono truncate"
+                    >
+                      <span className="text-gray-500">{m.property}:</span>{' '}
+                      <span className="text-amber-300">{m.expected}</span>{' '}
+                      <span className="text-gray-600">→</span>{' '}
+                      <span className="text-red-300">{m.actual}</span>
+                      {m.deltaPx !== undefined && (
+                        <span className="text-gray-600"> (Δ{m.deltaPx}px)</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="flex items-center gap-2">
+          {lastBackupId && (
+            <ActionButton
+              variant="primary"
+              onClick={handleRollback}
+            >
+              {rollingBack ? '롤백 중...' : 'Rollback'}
+            </ActionButton>
+          )}
+          <ActionButton variant="ghost" onClick={handleDismiss}>
+            무시
+          </ActionButton>
+        </div>
+      </div>
+    </PanelSection>
   );
 }
 

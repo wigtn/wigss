@@ -3,6 +3,12 @@
 import { useState } from 'react';
 import { useEditorStore } from '@/stores/editor-store';
 import { useAgentStore } from '@/stores/agent-store';
+import {
+  buildExpectationsFromChanges,
+  capturePriorBoxes,
+  extractActualBoxes,
+} from '@/lib/fidelity-client';
+import type { FidelityReport } from '@/types';
 
 const STATUS_COLORS: Record<string, string> = {
   idle: 'bg-emerald-400',
@@ -27,6 +33,70 @@ const STATUS_LABELS: Record<string, string> = {
   applying: 'Applying...',
   verifying: 'Verifying...',
 };
+
+/**
+ * Posts the fidelity expectations captured before /api/apply to /api/verify
+ * along with the currently-measured bounding boxes. On success stores the
+ * reports in the agent store; on failure records a verificationWarning so the
+ * UI can surface the issue without throwing.
+ */
+async function runVerification(
+  expectations: ReturnType<typeof buildExpectationsFromChanges>,
+  priorBoxes: Record<string, import('@/types').BoundingBox>,
+): Promise<void> {
+  try {
+    const agent = useAgentStore.getState();
+    const editor = useEditorStore.getState();
+    const componentIds = expectations.map((e) => e.componentId);
+    const actualBoxes = extractActualBoxes(componentIds, editor.components);
+
+    // If the re-scan never produced matching components we cannot verify.
+    const missing = componentIds.filter((id) => !actualBoxes[id]);
+    if (missing.length === componentIds.length) {
+      agent.setVerificationWarning(
+        `재스캔 후 컴포넌트를 다시 찾지 못해 검증을 건너뜁니다 (${missing.length}개).`,
+      );
+      agent.addLog('verify_skip', `No re-scanned components matched expectations`);
+      return;
+    }
+
+    const response = await fetch('/api/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ expectations, priorBoxes, actualBoxes }),
+    });
+    const result = (await response.json()) as {
+      success: boolean;
+      data?: { passed: boolean; reports: FidelityReport[] };
+      error?: { message?: string };
+    };
+
+    if (!response.ok || !result.success || !result.data) {
+      const msg = result.error?.message || `verify failed (HTTP ${response.status})`;
+      agent.setVerificationWarning(msg);
+      agent.addLog('verify_error', msg);
+      return;
+    }
+
+    agent.setVerificationReports(result.data.reports);
+    agent.addLog(
+      'verify_done',
+      result.data.passed
+        ? `All ${result.data.reports.length} expectation(s) passed`
+        : `${result.data.reports.filter((r) => !r.passed).length} expectation(s) failed`,
+    );
+    if (!result.data.passed) {
+      agent.setVerificationWarning(
+        `적용 결과가 의도와 다릅니다. 롤백할 수 있습니다.`,
+      );
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[FloatingToolbar] verify failed:', err);
+    useAgentStore.getState().setVerificationWarning(`검증 호출 실패: ${msg}`);
+    useAgentStore.getState().addLog('verify_error', msg);
+  }
+}
 
 export default function FloatingToolbar() {
   const {
@@ -76,6 +146,12 @@ export default function FloatingToolbar() {
       console.log('[Save] components count:', components.length);
       console.log('[Save] projectPath:', effectivePath);
 
+      // v2.2 fidelity pipeline: capture prior bbox snapshots + expectations BEFORE
+      // touching the filesystem so /api/verify can validate against re-measured
+      // components after the re-scan.
+      const priorBoxes = capturePriorBoxes(changes, components);
+      const expectations = buildExpectationsFromChanges(changes, components);
+
       try {
         const response = await fetch('/api/refactor', {
           method: 'POST',
@@ -114,7 +190,12 @@ export default function FloatingToolbar() {
         });
         const applyResult = await applyResponse.json() as {
           success: boolean;
-          data?: { applied: number; filesChanged: string[]; failed: { file: string; reason: string }[] };
+          data?: {
+            applied: number;
+            filesChanged: string[];
+            failed: { file: string; reason: string }[];
+            backupId?: string | null;
+          };
           error?: { message?: string };
         };
 
@@ -122,7 +203,7 @@ export default function FloatingToolbar() {
           throw new Error(applyResult.error?.message || 'Failed to apply changes');
         }
 
-        const { applied, filesChanged, failed } = applyResult.data;
+        const { applied, filesChanged, failed, backupId } = applyResult.data;
         const fileList = filesChanged.map((f: string) => f.split('/').pop()).join(', ');
         setSaveState('done');
         setSaveMessage(`✓ 저장 완료! ${applied}개 수정 적용: ${fileList}`);
@@ -131,6 +212,13 @@ export default function FloatingToolbar() {
         if (failed.length > 0) {
           addLog('apply_partial', `${failed.length} diff(s) failed`);
         }
+
+        // Record apply result for the fidelity verification loop.
+        useAgentStore.getState().setApplyResult(
+          backupId ?? null,
+          expectations,
+          priorBoxes,
+        );
 
         clearChanges();
         setDiffs([]);
@@ -151,6 +239,18 @@ export default function FloatingToolbar() {
         setTimeout(() => {
           sendMessage('scan', { url: targetUrl, projectPath: effectivePath });
         }, 3000);
+
+        // Fidelity verification: run /api/verify once components have been
+        // re-measured. Skip entirely if we had nothing to verify or no backup
+        // to roll back to.
+        if (expectations.length > 0 && backupId) {
+          useAgentStore.getState().setStatus('verifying');
+          setTimeout(() => {
+            void runVerification(expectations, priorBoxes).finally(() => {
+              useAgentStore.getState().setStatus('idle');
+            });
+          }, 4500);
+        }
 
         setTimeout(() => { setSaveState('idle'); setSaveMessage(''); }, 5000);
       } catch (error) {

@@ -1,6 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useAgentStore } from '../stores/agent-store';
-import type { AgentFeedback, ChatMessage, Suggestion } from '../types';
+import type {
+  AgentFeedback,
+  BoundingBox,
+  ChatMessage,
+  FidelityExpectation,
+  FidelityReport,
+  Suggestion,
+} from '../types';
 
 function makeFeedback(id: string): AgentFeedback {
   return {
@@ -175,6 +182,75 @@ describe('agent-store', () => {
     it('sets demo mode', () => {
       useAgentStore.getState().setDemoMode(true);
       expect(useAgentStore.getState().isDemoMode).toBe(true);
+    });
+  });
+
+  describe('v2.2 fidelity verification state', () => {
+    it('has correct initial fidelity defaults', () => {
+      const state = useAgentStore.getState();
+      expect(state.lastBackupId).toBeNull();
+      expect(state.lastExpectations).toEqual([]);
+      expect(state.lastPriorBoxes).toEqual({});
+      expect(state.verificationReports).toBeNull();
+      expect(state.verificationWarning).toBeNull();
+    });
+
+    it('setApplyResult captures backupId, expectations, priorBoxes and clears stale reports', () => {
+      const expectations: FidelityExpectation[] = [
+        { componentId: 'c1', expectedStyles: { width: '100px' }, sourceFile: 'a.tsx' },
+      ];
+      const priorBoxes: Record<string, BoundingBox> = {
+        c1: { x: 0, y: 0, width: 50, height: 50 },
+      };
+      // Pre-seed stale state
+      useAgentStore.getState().setVerificationReports([
+        { passed: false, componentId: 'old', mismatches: [] },
+      ]);
+      useAgentStore.getState().setVerificationWarning('stale');
+      useAgentStore.getState().setApplyResult('backup-123', expectations, priorBoxes);
+
+      const state = useAgentStore.getState();
+      expect(state.lastBackupId).toBe('backup-123');
+      expect(state.lastExpectations).toEqual(expectations);
+      expect(state.lastPriorBoxes).toEqual(priorBoxes);
+      expect(state.verificationReports).toBeNull();
+      expect(state.verificationWarning).toBeNull();
+    });
+
+    it('setVerificationReports stores reports', () => {
+      const reports: FidelityReport[] = [
+        { passed: true, componentId: 'c1', mismatches: [] },
+      ];
+      useAgentStore.getState().setVerificationReports(reports);
+      expect(useAgentStore.getState().verificationReports).toEqual(reports);
+    });
+
+    it('setVerificationWarning sets and clears', () => {
+      useAgentStore.getState().setVerificationWarning('something went wrong');
+      expect(useAgentStore.getState().verificationWarning).toBe('something went wrong');
+      useAgentStore.getState().setVerificationWarning(null);
+      expect(useAgentStore.getState().verificationWarning).toBeNull();
+    });
+
+    it('clearVerification resets every fidelity field', () => {
+      useAgentStore.getState().setApplyResult(
+        'backup-x',
+        [{ componentId: 'a', expectedStyles: {}, sourceFile: 'f' }],
+        { a: { x: 0, y: 0, width: 1, height: 1 } },
+      );
+      useAgentStore.getState().setVerificationReports([
+        { passed: false, componentId: 'a', mismatches: [] },
+      ]);
+      useAgentStore.getState().setVerificationWarning('warn');
+
+      useAgentStore.getState().clearVerification();
+
+      const state = useAgentStore.getState();
+      expect(state.lastBackupId).toBeNull();
+      expect(state.lastExpectations).toEqual([]);
+      expect(state.lastPriorBoxes).toEqual({});
+      expect(state.verificationReports).toBeNull();
+      expect(state.verificationWarning).toBeNull();
     });
   });
 
