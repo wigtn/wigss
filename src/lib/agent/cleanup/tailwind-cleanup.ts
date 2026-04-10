@@ -1,5 +1,5 @@
 import type { CodeDiff, SourceInput } from '@/types';
-import { pxToTw } from '../strategies/tailwind-strategy';
+import { pxToTw } from '../rewriters/tailwind-utils';
 import { findClassNameAttribute } from '@/lib/ast-utils';
 
 /**
