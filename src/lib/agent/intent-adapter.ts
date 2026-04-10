@@ -10,7 +10,14 @@ export function changeToIntent(
   change: ComponentChange,
   component: DetectedComponent | undefined,
 ): StyleIntent {
-  const targetStyles = changeToCssProperties(change);
+  // Start with bbox-derived values, then overlay any editor-captured
+  // computed styles so non-geometry edits (color, font, border, etc.) reach
+  // the rewriters without a new message type. Passthrough keys override
+  // bbox-derived ones when both describe the same property.
+  const targetStyles = {
+    ...changeToCssProperties(change),
+    ...(change.targetStyles ?? {}),
+  };
 
   const intent: StyleIntent = {
     componentId: change.componentId,
@@ -44,7 +51,12 @@ export function changesToIntents(
   for (const change of changes) {
     const existing = merged.get(change.componentId);
     if (!existing) {
-      merged.set(change.componentId, { ...change, from: { ...change.from }, to: { ...change.to } });
+      merged.set(change.componentId, {
+        ...change,
+        from: { ...change.from },
+        to: { ...change.to },
+        targetStyles: change.targetStyles ? { ...change.targetStyles } : undefined,
+      });
       continue;
     }
     existing.to = { ...existing.to, ...change.to };
@@ -52,6 +64,11 @@ export function changesToIntents(
       if (existing.from[key] == null && change.from[key] != null) {
         existing.from[key] = change.from[key];
       }
+    }
+    // Merge editor-captured targetStyles; later changes override earlier ones
+    // on a per-property basis.
+    if (change.targetStyles) {
+      existing.targetStyles = { ...(existing.targetStyles ?? {}), ...change.targetStyles };
     }
     if (existing.type !== change.type) {
       const sizeChanged = (existing.to.width ?? 0) !== (existing.from.width ?? 0)

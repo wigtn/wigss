@@ -4,7 +4,7 @@ import { detectComponents, type RawScanElement } from '../lib/component-detector
 function el(overrides: Partial<RawScanElement>): RawScanElement {
   return {
     id: 'el-1', tagName: 'div', className: '', boundingBox: { x: 0, y: 0, width: 800, height: 200 },
-    visible: true, parentId: null, childIds: [], attributes: {}, textContent: '',
+    visible: true, attributes: {}, textContent: '',
     depth: 1, childCount: 0, computedStyle: { display: 'block', position: 'relative', flexDirection: '' },
     ...overrides,
   };
@@ -87,7 +87,7 @@ describe('component-detector: filtering', () => {
 describe('component-detector: repeated siblings (card grid)', () => {
   it('should detect repeated children as card type', () => {
     const comps = detectComponents([
-      el({ id: 'grid-1', tagName: 'div', className: 'grid gap-4', boundingBox: { x: 0, y: 0, width: 1200, height: 600 }, childIds: ['c1', 'c2', 'c3'], childCount: 3, computedStyle: { display: 'grid', position: 'relative', flexDirection: '' } }),
+      el({ id: 'grid-1', tagName: 'div', className: 'grid gap-4', boundingBox: { x: 0, y: 0, width: 1200, height: 600 }, childCount: 3, computedStyle: { display: 'grid', position: 'relative', flexDirection: '' } }),
       el({ id: 'c1', tagName: 'div', className: 'p-4 bg-white rounded', boundingBox: { x: 0, y: 0, width: 380, height: 200 }, parentId: 'grid-1', depth: 2 }),
       el({ id: 'c2', tagName: 'div', className: 'p-4 bg-white rounded', boundingBox: { x: 400, y: 0, width: 380, height: 200 }, parentId: 'grid-1', depth: 2 }),
       el({ id: 'c3', tagName: 'div', className: 'p-4 bg-white rounded', boundingBox: { x: 800, y: 0, width: 380, height: 200 }, parentId: 'grid-1', depth: 2 }),

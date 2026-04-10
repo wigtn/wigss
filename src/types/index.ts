@@ -45,6 +45,14 @@ export interface ComponentChange {
   type: 'move' | 'resize';
   from: { x?: number; y?: number; width?: number; height?: number };
   to: { x?: number; y?: number; width?: number; height?: number };
+  /**
+   * Optional computed-style passthrough captured by the editor at drag/resize
+   * end. Keys are camelCase CSS properties (matching StyleIntent.targetStyles).
+   * When present, the intent adapter merges these on top of the bbox-derived
+   * defaults so non-geometry edits (color, font, border, etc.) flow through
+   * the fidelity pipeline without a new message type.
+   */
+  targetStyles?: Record<string, string>;
 }
 
 export interface CodeDiff {
@@ -242,18 +250,14 @@ export interface TargetLocation {
 }
 
 /**
- * Language-specific strategy for finding where a StyleIntent should be applied.
- * Must be deterministic and pure (no filesystem side effects).
- */
-export interface TargetLocator {
-  readonly id: string;
-  locate(intent: StyleIntent, sources: SourceInput[]): TargetLocation | null;
-}
-
-/**
  * Language-specific strategy for producing a CodeDiff from a TargetLocation.
  * Returning `null` signals "cannot rewrite" — dispatcher will try fallback rewriters.
  * Rewriters must be all-or-nothing: never return a partial diff.
+ *
+ * Note: a dedicated `TargetLocator` interface was considered in Phase 1 but
+ * dropped — every Phase 2-3 rewriter owns its own target-discovery logic, so
+ * splitting into a separate locator layer added ceremony without an external
+ * contract to enforce. Revisit if a language needs to share locators.
  */
 export interface SourceRewriter {
   readonly id: string;
