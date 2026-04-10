@@ -86,7 +86,23 @@ WIGSS automatically detects which CSS approach your project uses and generates t
 | **Tailwind CSS** | Utility class patterns in className | `className="flex h-48 w-64"` |
 | **CSS Modules** | `import styles from './X.module.css'` | `className={styles.card}` |
 | **Plain CSS** | Class found in `.css`/`.scss` files | `.hero { height: 400px; }` |
-| **Inline Styles** | Fallback for any React component | `style={{ height: '300px' }}` |
+| **HTML + CSS** | `.html`/`.htm` source with linked stylesheet | `<link rel="stylesheet" href="styles.css">` |
+| **Inline Styles** | Universal fallback for any component | `style={{ height: '300px' }}` |
+
+All strategies share a single language-agnostic pipeline internally:
+`StyleIntent → dispatcher → rewriter → CodeDiff`. Adding a new language
+only requires a new rewriter file — no changes to the editor, the
+intent model, or the apply path. See the
+[v2.2 PRD](docs/prd/PRD_wigss-v2.2-fidelity-pipeline.md) for
+architectural detail.
+
+### Fidelity Verification
+
+Every Save produces a rollback token and a set of fidelity expectations.
+If the post-apply DOM doesn't match what you designed (within a 2px
+tolerance), WIGSS surfaces a warning and offers a one-click rollback —
+so "what you design = what gets saved" holds even in unfamiliar
+frameworks and Coding-Agent-generated code.
 
 ---
 

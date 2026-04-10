@@ -13,7 +13,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Communication**: WebSocket (always connected, event-driven)
 - **Visual Editor**: iframe (target page) + overlay (absolute-positioned component boxes with drag/resize)
 - **AI (observe/suggest/chat)**: OpenAI GPT-4o (Chat Completions + function calling)
-- **AI (refactor)**: Direct Tailwind class mapping (deterministic, no LLM)
+- **Refactor pipeline (v2.2)**: language-agnostic `ComponentChange → StyleIntent → dispatcher → rewriter → CodeDiff`. Deterministic, no LLM. Supports Tailwind / CSS Modules / Plain CSS / HTML+CSS / universal inline fallback.
+- **Fidelity verification (v2.2)**: every `/api/apply` returns a `backupId` + `expectations`. Editor re-measures, POSTs `/api/verify`, and can POST `/api/rollback` to restore originals if the result drifts.
 - **DOM Scan**: postMessage + component-detector.ts (software-based, no browser dependency)
 - **File I/O**: Node.js fs for source code read/write
 
@@ -22,12 +23,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `bin/` — CLI entry point
 - `demo-target/` — Sample web page for demo/testing (localhost:3001)
 - `src/app/api/ws/` — WebSocket endpoint
-- `src/app/api/apply/` — Source file modification (REST, for safety)
+- `src/app/api/apply/` — Source file modification (REST, backup-aware)
+- `src/app/api/verify/` — Post-apply fidelity verification endpoint
+- `src/app/api/rollback/` — Restore originals from a backup token
 - `src/components/editor/` — VisualEditor, ComponentTagBar, FloatingToolbar
 - `src/components/panels/` — AgentPanel, ChatInterface, FeedbackCards, DiffPreview
 - `src/stores/` — Zustand (editor-store + agent-store)
-- `src/lib/agent/` — Agent loop, OpenAI client, refactor client, tools
-- `src/lib/` — component-detector, file-utils, ws-server, css-strategy-detector, postcss-utils, ast-utils
+- `src/lib/agent/` — Agent loop, OpenAI client, refactor-client, intent-adapter, dispatcher
+- `src/lib/agent/rewriters/` — Per-language SourceRewriter implementations (tailwind/inline/css-module/plain-css/html-css)
+- `src/lib/agent/cleanup/` — Optional post-dispatch passes (e.g. Tailwind class reduction)
+- `src/lib/agent/verify/` — Fidelity check core (pure comparison utilities)
+- `src/lib/` — component-detector, file-utils, ws-server, css-strategy-detector, postcss-utils, ast-utils, apply-backup
 
 ## Conventions
 
@@ -37,7 +43,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - WebSocket messages: `{ type: string, payload: any }`
 - API responses (REST): `{ success: boolean, data: {...} }` or `{ success: false, error: { code, message } }`
 - Component types: navbar, header, hero, grid, card, sidebar, footer, section, form, modal
-- AI calls: OpenAI GPT-4o for observe/suggest/chat; refactoring uses direct Tailwind class mapping (no LLM)
+- AI calls: OpenAI GPT-4o for observe/suggest/chat; refactoring is deterministic (no LLM)
+- `StyleIntent.targetStyles` uses camelCase (JSX-native); CSS-file rewriters convert via `targetStylesToKebab`
+- Rewriters must be all-or-nothing — never return a partial diff
 - Canvas state tracked via component boundingBox snapshots
 
 ## Commands

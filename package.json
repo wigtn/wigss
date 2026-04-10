@@ -1,6 +1,6 @@
 {
   "name": "wigss",
-  "version": "0.1.4",
+  "version": "0.2.0",
   "description": "WIGSS (Style Shaper) by WIGTN Crew — drag UI components and the source code rewrites itself. Visual code refactoring CLI with always-on AI agent. Supports Tailwind CSS, CSS Modules, and inline styles.",
   "license": "Apache-2.0",
   "author": "Harrison Kim <hyeongseob91@gmail.com> (WIGTN Crew)",
