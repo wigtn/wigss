@@ -316,11 +316,10 @@ export default function VisualEditor() {
                       selectRef.current(comp.id);
                     }}
                     onMouseDown={(e) => {
-                      if (isBackground && !isSelected) {
-                        e.stopPropagation();
-                        selectRef.current(comp.id);
-                      }
-                      if (isSelected) handleMouseDown(e, comp.id, 'drag');
+                      // Press = select AND start dragging in one gesture (no click-first required).
+                      // handleMouseDown selects this component and begins the drag immediately,
+                      // so each element moves to the dropped position right away.
+                      handleMouseDown(e, comp.id, 'drag');
                     }}
                     className="wigss-overlay-box"
                     style={{
@@ -341,7 +340,7 @@ export default function VisualEditor() {
                         ? `0 0 20px ${colors.stroke}80, 0 0 40px ${colors.stroke}40, inset 0 0 30px ${colors.stroke}15`
                         : 'none',
                       opacity: isBackground ? 0.3 : isHovered ? 1 : opacity,
-                      cursor: isSelected ? (interaction?.compId === comp.id ? 'grabbing' : 'grab') : 'pointer',
+                      cursor: interaction?.compId === comp.id ? 'grabbing' : 'grab',
                       boxSizing: 'border-box',
                       pointerEvents: 'auto',
                       zIndex: isSelected ? 9999 : isHovered ? 9998 : idx + 1,
