@@ -2,9 +2,10 @@
 
 import { program } from 'commander';
 import { spawn } from 'child_process';
-import { resolve, dirname } from 'path';
+import { resolve, dirname, join } from 'path';
 import { fileURLToPath } from 'url';
-import { createInterface } from 'readline';
+import { existsSync } from 'fs';
+import { homedir } from 'os';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, '..');
@@ -15,7 +16,6 @@ program
   .version('0.1.0')
   .option('-p, --port <port>', 'target dev server port', '3000')
   .option('--wigss-port <port>', 'WIGSS editor port', '4000')
-  .option('--key <key>', 'OpenAI API key')
   .option('--demo', 'run with built-in demo-target')
   .parse(process.argv);
 
@@ -24,49 +24,45 @@ const targetPort = opts.port;
 const wigssPort = opts.wigssPort;
 const sourcePath = process.cwd();
 
-async function promptForKey() {
-  // Check if key is already provided via flag or env
-  if (opts.key) return opts.key;
-  if (process.env.OPENAI_API_KEY) return process.env.OPENAI_API_KEY;
-
-  // Interactive prompt
-  const rl = createInterface({ input: process.stdin, output: process.stdout });
-  return new Promise((resolve) => {
-    console.log('');
-    console.log('  WIGSS requires an OpenAI API key (GPT-4o for analysis and suggestions).');
-    console.log('  Get one at: https://platform.openai.com/api-keys');
-    console.log('');
-    rl.question('  Enter your OpenAI API key: ', (answer) => {
-      rl.close();
-      resolve(answer.trim());
-    });
-  });
+/**
+ * Claude provider 인증 확인 — Claude Code 구독제 OAuth(~/.claude/.credentials.json)를 우선,
+ * 없으면 ANTHROPIC_API_KEY. 둘 다 없으면 경고만 하고 서버는 띄운다(차단하지 않음).
+ */
+function checkClaudeAuth() {
+  const oauth = existsSync(join(homedir(), '.claude', '.credentials.json'));
+  const apiKey = !!process.env.ANTHROPIC_API_KEY;
+  return { ok: oauth || apiKey, oauth, apiKey };
 }
 
 async function main() {
-  const apiKey = await promptForKey();
-
-  if (!apiKey) {
-    console.error('\n  Error: OpenAI API key is required. Use --key <key> or set OPENAI_API_KEY env var.\n');
-    process.exit(1);
-  }
+  const auth = checkClaudeAuth();
+  const aiLine = auth.oauth
+    ? '✓ Claude Code 플랜 (OAuth)'
+    : auth.apiKey
+      ? '✓ ANTHROPIC_API_KEY'
+      : '✗ 인증 없음';
 
   console.log(`
   ╔══════════════════════════════════════╗
-  ║     WIGSS — Style Shaper v0.1.2     ║
+  ║     WIGSS — Style Shaper v0.2.0     ║
   ╠══════════════════════════════════════╣
   ║  Target:  http://localhost:${targetPort.toString().padEnd(10)}║
   ║  Editor:  http://localhost:${wigssPort.toString().padEnd(10)}║
   ║  Source:  ${sourcePath.slice(-29).padEnd(29)}║
-  ║  AI Key:  ✓ Configured               ║
+  ║  AI:      ${aiLine.padEnd(29)}║
   ╚══════════════════════════════════════╝
   `);
+
+  if (!auth.ok) {
+    console.warn('  ⚠ Claude 인증을 찾지 못했습니다.');
+    console.warn('    `claude` CLI로 로그인(~/.claude/.credentials.json)하거나 ANTHROPIC_API_KEY를 설정하세요.');
+    console.warn('    (서버는 시작하지만 AI 기능 호출 시 오류가 납니다.)\n');
+  }
 
   // Set env vars
   process.env.TARGET_PORT = targetPort;
   process.env.SOURCE_PATH = sourcePath;
   process.env.WIGSS_PORT = wigssPort;
-  process.env.OPENAI_API_KEY = apiKey;
 
   if (opts.demo) {
     const demoProc = spawn('pnpm', ['--filter', 'demo-target', 'dev'], {

@@ -3,7 +3,7 @@ import {
   suggestImprovements,
   provideFeedback,
   chat,
-} from './openai-client';
+} from './llm-client';
 import type {
   WSClientMessage,
   DetectedComponent,
@@ -17,10 +17,10 @@ import type { WebSocket as WS } from 'ws';
  *
  * Listens on the WebSocket server for client messages and orchestrates:
  *  - Page scanning (Playwright)
- *  - Component detection (OpenAI)
- *  - Improvement suggestions (OpenAI)
- *  - Real-time feedback on edits (OpenAI)
- *  - Chat interactions (OpenAI)
+ *  - Component detection (software DOM scan)
+ *  - Improvement suggestions (LLM provider: Claude)
+ *  - Real-time feedback on edits (LLM provider)
+ *  - Chat interactions (LLM provider)
  */
 class WIGSSAgent {
   private components: DetectedComponent[] = [];

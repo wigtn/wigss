@@ -1,5 +1,5 @@
-// System prompts for OpenAI GPT-4o function calling
-// Extracted from openai-client.ts for maintainability and future i18n
+// System prompts for the agent's tool-use (Claude provider)
+// Extracted from llm-client.ts for maintainability and future i18n
 
 export const DETECT_SYSTEM_PROMPT = `당신은 WIGSS (Style Shaper)의 UI 컴포넌트 감지 에이전트입니다.
 웹 페이지의 DOM 요소를 분석하여 독립적인 UI 컴포넌트를 식별합니다.
