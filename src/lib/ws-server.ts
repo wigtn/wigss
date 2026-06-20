@@ -7,7 +7,22 @@ type ConnectionHandler = (ws: WS) => void;
 
 // Rate limiting: max messages per second per client
 const MESSAGE_RATE_LIMIT = 30;
-const ALLOWED_ORIGINS = ['http://localhost:3000', 'http://localhost:4000', 'http://localhost:4001'];
+
+// Allowed WS origins — honor the actual editor/target ports (WIGSS_PORT/TARGET_PORT)
+// so the editor works on any port, not just the hardcoded defaults. Still an
+// allowlist (never '*'); covers localhost + 127.0.0.1 for both ports.
+function buildAllowedOrigins(): string[] {
+  const ports = new Set(['3000', '4000', '4001']);
+  for (const p of [process.env.WIGSS_PORT, process.env.TARGET_PORT]) {
+    if (p) ports.add(String(p));
+  }
+  const origins: string[] = [];
+  for (const host of ['localhost', '127.0.0.1']) {
+    for (const p of ports) origins.push(`http://${host}:${p}`);
+  }
+  return origins;
+}
+const ALLOWED_ORIGINS = buildAllowedOrigins();
 
 class WIGSSWebSocketServer {
   private wss: WebSocketServer | null = null;
