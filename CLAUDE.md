@@ -12,7 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Frontend**: Next.js 14 (App Router) + Tailwind CSS + Zustand
 - **Communication**: WebSocket (always connected, event-driven)
 - **Visual Editor**: iframe (target page) + overlay (absolute-positioned component boxes with drag/resize)
-- **AI (observe/suggest/chat)**: OpenAI GPT-4o (Chat Completions + function calling)
+- **AI (observe/suggest/chat)**: Claude (Anthropic Messages API + tool-use), via Claude Code 구독제 OAuth — `src/lib/agent/providers/claude.ts`. OpenAI 미지원.
 - **Refactor pipeline (v2.2)**: language-agnostic `ComponentChange → StyleIntent → dispatcher → rewriter → CodeDiff`. Deterministic, no LLM. Supports Tailwind / CSS Modules / Plain CSS / HTML+CSS / universal inline fallback.
 - **Fidelity verification (v2.2)**: every `/api/apply` returns a `backupId` + `expectations`. Editor re-measures, POSTs `/api/verify`, and can POST `/api/rollback` to restore originals if the result drifts.
 - **DOM Scan**: postMessage + component-detector.ts (software-based, no browser dependency)
@@ -29,7 +29,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `src/components/editor/` — VisualEditor, ComponentTagBar, FloatingToolbar
 - `src/components/panels/` — AgentPanel, ChatInterface, FeedbackCards, DiffPreview
 - `src/stores/` — Zustand (editor-store + agent-store)
-- `src/lib/agent/` — Agent loop, OpenAI client, refactor-client, intent-adapter, dispatcher
+- `src/lib/agent/` — Agent loop, llm-client (Claude), providers/claude.ts, refactor-client, intent-adapter, dispatcher
 - `src/lib/agent/rewriters/` — Per-language SourceRewriter implementations (tailwind/inline/css-module/plain-css/html-css)
 - `src/lib/agent/cleanup/` — Optional post-dispatch passes (e.g. Tailwind class reduction)
 - `src/lib/agent/verify/` — Fidelity check core (pure comparison utilities)
@@ -43,7 +43,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - WebSocket messages: `{ type: string, payload: any }`
 - API responses (REST): `{ success: boolean, data: {...} }` or `{ success: false, error: { code, message } }`
 - Component types: navbar, header, hero, grid, card, sidebar, footer, section, form, modal
-- AI calls: OpenAI GPT-4o for observe/suggest/chat; refactoring is deterministic (no LLM)
+- AI calls: Claude (tool-use) for observe/suggest/chat; refactoring is deterministic (no LLM)
 - `StyleIntent.targetStyles` uses camelCase (JSX-native); CSS-file rewriters convert via `targetStylesToKebab`
 - Rewriters must be all-or-nothing — never return a partial diff
 - Canvas state tracked via component boundingBox snapshots

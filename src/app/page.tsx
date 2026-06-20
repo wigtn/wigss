@@ -4,8 +4,10 @@ import { useEffect, useRef } from 'react';
 import FloatingToolbar from '@/components/editor/FloatingToolbar';
 import VisualEditor from '@/components/editor/VisualEditor';
 import AgentPanel from '@/components/panels/AgentPanel';
+import { ProviderSettings } from '@/components/panels/ProviderSettings';
 import { useEditorStore } from '@/stores/editor-store';
 import { useAgentStore } from '@/stores/agent-store';
+import { useSettingsStore } from '@/stores/settings-store';
 
 export default function EditorPage() {
   const initialized = useRef(false);
@@ -37,6 +39,14 @@ export default function EditorPage() {
       <FloatingToolbar />
       <VisualEditor />
       <AgentPanel />
+      <button
+        onClick={() => useSettingsStore.getState().setOpen(true)}
+        title="AI Provider 설정"
+        className="absolute top-3 right-3 z-40 w-9 h-9 rounded-md border border-zinc-700 bg-zinc-900/80 text-zinc-300 hover:text-white hover:border-zinc-500 flex items-center justify-center"
+      >
+        ⚙
+      </button>
+      <ProviderSettings />
     </div>
   );
 }
