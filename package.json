@@ -30,7 +30,8 @@
     "start": "next start --port 4000",
     "lint": "next lint",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:ab": "vitest run --config ab/vitest.config.ts"
   },
   "keywords": [
     "wigss",
