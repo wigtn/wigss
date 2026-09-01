@@ -15,6 +15,8 @@ import path from 'path';
 export default defineConfig({
   test: {
     globals: true,
+    // 테스트가 사용자 홈(~/.wigss)에 텔레메트리를 쓰지 않도록 차단
+    env: { WIGSS_TELEMETRY: '0' },
     include: ['ab/**/*.test.ts'],
   },
   resolve: {

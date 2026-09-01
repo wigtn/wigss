@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { readSourceFile, writeSourceFile } from '@/lib/file-utils';
 import { defaultBackupStore, revertEdits } from '@/lib/apply-backup';
+import { recordEditAttempt } from '@/lib/telemetry';
 
 /**
  * POST /api/rollback  (v3 · P4 · PROD-634)
@@ -66,6 +67,7 @@ export async function POST(req: NextRequest) {
 
       const reverted = revertEdits(current, file.edits);
       if (!reverted.ok) {
+        recordEditAttempt({ tier: 'T0', intent: 'style', result: 'refused', failReason: reverted.reason });
         return NextResponse.json(
           {
             success: false,
@@ -86,6 +88,7 @@ export async function POST(req: NextRequest) {
 
     // 성공한 롤백만 소비한다 (거부는 항목을 남겨 재시도 허용)
     defaultBackupStore.delete(entry.id);
+    recordEditAttempt({ tier: 'T0', intent: 'style', result: 'rolled_back' });
 
     return NextResponse.json({
       success: true,

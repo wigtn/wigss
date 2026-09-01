@@ -3,6 +3,7 @@ import path from 'path';
 import type { CodeDiff } from '@/types';
 import { isPathSafe, readSourceFile, writeSourceFile } from '@/lib/file-utils';
 import { defaultBackupStore, type BackupFile } from '@/lib/apply-backup';
+import { recordEditAttempt } from '@/lib/telemetry';
 
 function applyDiff(content: string, diff: CodeDiff): { ok: true; content: string } | { ok: false; reason: string } {
   const original = diff.original ?? '';
@@ -175,7 +176,11 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      for (const f of failed.filter((x) => x.file === file)) {
+        recordEditAttempt({ tier: 'T0', intent: 'style', result: 'fail', failReason: f.reason });
+      }
       if (fileAppliedCount > 0) {
+        recordEditAttempt({ tier: 'T0', intent: 'style', result: 'pass' });
         // P4(PROD-634): 파일 스냅샷 대신 적용한 편집만 기억한다. 롤백은 역치환이라
         // 사용자의 동시 수정을 덮어쓰지 않는다.
         backupFiles.push({ path: absolutePath, edits: appliedEdits });

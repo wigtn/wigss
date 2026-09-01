@@ -9,6 +9,8 @@ import {
 } from '@/lib/file-utils';
 import { generateRefactorResult } from '@/lib/agent/refactor-client';
 import { parseAddress } from '@/lib/agent/address-resolver';
+import { recordEditAttempt } from '@/lib/telemetry';
+import { bpFromWidth } from '@/lib/agent/rewriters/breakpoint-tailwind';
 
 type RefactorRequest = {
   changes: ComponentChange[];
@@ -160,6 +162,13 @@ export async function POST(req: NextRequest) {
       viewportWidth,
       tailwindProject,
     });
+
+    for (const s of skipped) {
+      recordEditAttempt({
+        tier: 'T0', intent: 'style', result: 'abandon',
+        breakpoint: bpFromWidth(viewportWidth), failReason: s.reason,
+      });
+    }
 
     return NextResponse.json({
       success: true,
