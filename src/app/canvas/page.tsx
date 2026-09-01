@@ -14,6 +14,9 @@
  *   목적지를 미리 보여주고, 놓으면 /api/restructure(순서 변경). 그 외에는
  *   스타일 이동/크기로 저장된다. 힌트가 그려졌던 동작만 자동 확정된다.
  * - 색은 상태(호버/선택)에만 쓰고, 정보는 라벨·배지로 (목업 결론).
+ * - 좌측 레일(시안의 "rail displaces the canvas"): 라우트는 /api/routes 의
+ *   정적 스캔에서, 트리는 활성 카드의 스캔 결과에서 온다. 레일 행 클릭은
+ *   해당 컴포넌트로 팬·선택, 라우트 클릭은 카드 전체를 그 라우트로 이동.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ComponentChange, DetectedComponent } from '@/types';
@@ -21,6 +24,12 @@ import { detectComponents, type RawScanElement } from '@/lib/component-detector'
 
 const HEADER_H = 32;
 const CARD_H = 1500;
+const RAIL_W = 232;
+
+interface RouteEntry {
+  path: string;
+  needsValue: boolean;
+}
 
 interface Card {
   id: string;
@@ -54,6 +63,8 @@ interface DragState {
 
 export default function CanvasPage() {
   const [target, setTarget] = useState<string | null>(null);
+  const [routes, setRoutes] = useState<RouteEntry[]>([]);
+  const [route, setRoute] = useState('/');
   const [world, setWorld] = useState({ x: 60, y: 40, zoom: 0.55 });
   const [activeId, setActiveId] = useState<string>('lg');
   const [enriched, setEnriched] = useState<Enriched[]>([]);
@@ -88,6 +99,22 @@ export default function CanvasPage() {
       .then(({ data }) => setTarget(`http://localhost:${data?.targetPort || '3001'}`))
       .catch(() => setTarget('http://localhost:3001'));
   }, []);
+
+  /* ── 라우트 목록: 타깃 app/ 디렉터리 정적 스캔 ── */
+  useEffect(() => {
+    fetch('/api/routes')
+      .then((r) => r.json())
+      .then(({ data }) => setRoutes(Array.isArray(data?.routes) ? data.routes : []))
+      .catch(() => setRoutes([]));
+  }, []);
+
+  const switchRoute = useCallback((next: string) => {
+    if (next === route) return;
+    setRoute(next);
+    setEnriched([]);
+    setSelected(null);
+    rescanOnLoad.current = true; // src 교체로 전 카드 리로드 → 활성 카드 load 시 재스캔
+  }, [route]);
 
   /* ── 스캔 결과 수신: e.source 로 어느 카드인지 식별 ── */
   useEffect(() => {
@@ -330,7 +357,55 @@ export default function CanvasPage() {
     [enriched],
   );
 
+  /* ── 레일 트리: 문서 순서 + 포함 관계로 들여쓰기, 이름 중복은 ×N 배지 ── */
+  const tree = useMemo(() => {
+    const contains = (o: Enriched, i: Enriched) => {
+      const a = o.comp.boundingBox;
+      const b = i.comp.boundingBox;
+      return (
+        a.x <= b.x + 1 && a.y <= b.y + 1 &&
+        a.x + a.width >= b.x + b.width - 1 && a.y + a.height >= b.y + b.height - 1 &&
+        a.width * a.height > b.width * b.height + 4
+      );
+    };
+    const nameCount = new Map<string, number>();
+    for (const v of visible) nameCount.set(v.comp.name, (nameCount.get(v.comp.name) ?? 0) + 1);
+    const seen = new Set<string>();
+    return [...visible]
+      .sort((a, b) => a.order - b.order)
+      .map((item) => ({
+        item,
+        depth: visible.filter((o) => o !== item && contains(o, item)).length,
+        uses: nameCount.get(item.comp.name) ?? 1,
+      }))
+      .filter((row) => {
+        // 같은 이름의 반복 렌더는 첫 행만 남기고 ×N 으로 접는다 (시안의 Card ×3)
+        if (row.uses <= 1) return true;
+        if (seen.has(row.item.comp.name)) return false;
+        seen.add(row.item.comp.name);
+        return true;
+      });
+  }, [visible]);
+
+  /* 레일 행 클릭 → 선택 + 활성 카드의 해당 컴포넌트가 화면 중앙에 오게 팬 */
+  const focusComponent = useCallback((item: Enriched) => {
+    setSelected(item.comp.id);
+    const vp = viewportRef.current;
+    if (!vp) return;
+    const r = vp.getBoundingClientRect();
+    const card = CARDS.find((c) => c.id === activeRef.current)!;
+    const b = item.comp.boundingBox;
+    const z = worldRef.current.zoom;
+    const visibleH = Math.min(b.height, r.height / z);
+    setWorld((w) => ({
+      ...w,
+      x: r.width / 2 - (card.x + b.x + b.width / 2) * z,
+      y: r.height / 2 - (HEADER_H + b.y + visibleH / 2) * z,
+    }));
+  }, []);
+
   const inv = 1 / world.zoom;
+  const routeSuffix = route === '/' ? '' : route;
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: '#1c1c1c', color: '#ededed', fontFamily: 'system-ui, sans-serif', overflow: 'hidden' }}>
@@ -353,8 +428,54 @@ export default function CanvasPage() {
         </a>
       </div>
 
-      {/* ── 캔버스 ── */}
-      <div ref={viewportRef} style={{ position: 'absolute', inset: '44px 0 0 0', overflow: 'hidden', cursor: drag ? 'grabbing' : 'default', background: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,.04) 1px, transparent 0) 0 0/22px 22px' }}>
+      {/* ── 좌측 레일: 라우트(정적 스캔) + 이 라우트의 컴포넌트 트리 ── */}
+      <div data-testid="rail" style={{ position: 'fixed', top: 44, bottom: 28, left: 0, width: RAIL_W, background: '#181818', borderRight: '1px solid #2e2e2e', zIndex: 90, overflowY: 'auto', padding: '10px 0 16px', fontSize: 12.5 }}>
+        <div style={{ padding: '6px 14px 4px', fontSize: 10.5, letterSpacing: '.08em', color: '#7e7e7e', fontWeight: 600 }}>ROUTES</div>
+        {routes.length === 0 && <div style={{ padding: '4px 14px', color: '#5c5c5c' }}>스캔 중…</div>}
+        {routes.map((r) => {
+          const isActive = r.path === route;
+          return (
+            <div
+              key={r.path}
+              data-testid={`rail-route-${r.path}`}
+              onClick={() => !r.needsValue && switchRoute(r.path)}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 14px 5px 12px', borderLeft: `2px solid ${isActive ? '#3ecf8e' : 'transparent'}`, background: isActive ? 'rgba(62,207,142,.08)' : 'transparent', color: r.needsValue ? '#5c5c5c' : isActive ? '#ededed' : '#b4b4b4', cursor: r.needsValue ? 'not-allowed' : 'pointer', fontFamily: 'monospace' }}
+            >
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.path}</span>
+              {r.needsValue && (
+                <span style={{ marginLeft: 'auto', fontSize: 9.5, border: '1px solid #3a3a3a', borderRadius: 4, padding: '1px 5px', color: '#8a8a8a' }}>needs value</span>
+              )}
+            </div>
+          );
+        })}
+
+        <div style={{ padding: '16px 14px 4px', fontSize: 10.5, letterSpacing: '.08em', color: '#7e7e7e', fontWeight: 600 }}>TREE · THIS ROUTE</div>
+        {tree.length === 0 && <div style={{ padding: '4px 14px', color: '#5c5c5c' }}>활성 카드 스캔 대기…</div>}
+        {tree.map(({ item, depth, uses }) => {
+          const isSel = item.comp.id === selected;
+          const noAddr = !item.comp.sourceAddress;
+          return (
+            <div
+              key={item.comp.id}
+              data-testid={`rail-comp-${item.comp.name}`}
+              onClick={() => focusComponent(item)}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: `4px 14px 4px ${12 + depth * 14}px`, borderLeft: `2px solid ${isSel ? '#3ecf8e' : 'transparent'}`, background: isSel ? 'rgba(62,207,142,.08)' : 'transparent', color: isSel ? '#ededed' : '#b4b4b4', cursor: 'pointer' }}
+            >
+              <span style={{ width: 7, height: 7, borderRadius: 2, border: `1px solid ${isSel ? '#3ecf8e' : '#5c5c5c'}`, background: isSel ? 'rgba(62,207,142,.5)' : 'transparent', flexShrink: 0 }} />
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.comp.name}</span>
+              {uses > 1 && (
+                <span style={{ marginLeft: 'auto', fontSize: 9.5, fontFamily: 'monospace', border: '1px solid rgba(62,207,142,.35)', background: 'rgba(62,207,142,.1)', color: '#3ecf8e', borderRadius: 4, padding: '1px 5px', flexShrink: 0 }}>×{uses}</span>
+              )}
+              {noAddr && (
+                <span style={{ marginLeft: uses > 1 ? 4 : 'auto', fontSize: 9.5, fontFamily: 'monospace', border: '1px solid rgba(230,164,62,.4)', background: 'rgba(230,164,62,.1)', color: '#e6a43e', borderRadius: 4, padding: '1px 5px', flexShrink: 0 }}>no addr</span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ── 캔버스 (레일이 캔버스를 밀어낸다 — 패널이 편집 대상을 가리지 않게) ── */}
+      <div ref={viewportRef} style={{ position: 'absolute', inset: `44px 0 0 ${RAIL_W}px`, overflow: 'hidden', cursor: drag ? 'grabbing' : 'default', background: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,.04) 1px, transparent 0) 0 0/22px 22px' }}>
         <div style={{ position: 'absolute', transformOrigin: '0 0', transform: `translate(${world.x}px, ${world.y}px) scale(${world.zoom})` }}>
           {target &&
             CARDS.map((card) => {
@@ -366,7 +487,7 @@ export default function CanvasPage() {
                     style={{ height: HEADER_H, display: 'flex', alignItems: 'center', gap: 8, padding: `0 ${10 * inv}px`, background: '#181818', borderBottom: '1px solid #2e2e2e', cursor: 'pointer', fontFamily: 'monospace', fontSize: 11.5 * inv, color: '#b4b4b4' }}
                   >
                     <span style={{ width: 6 * inv, height: 6 * inv, borderRadius: '50%', background: active ? '#3ecf8e' : '#5c5c5c' }} />
-                    <span>/ · {card.label}</span>
+                    <span>{route} · {card.label}</span>
                     {active && <span style={{ color: '#3ecf8e' }}>active</span>}
                   </div>
                   <div style={{ position: 'relative', height: CARD_H }}>
@@ -374,7 +495,7 @@ export default function CanvasPage() {
                       ref={(el) => {
                         if (el) iframesRef.current.set(card.id, el);
                       }}
-                      src={target}
+                      src={target + routeSuffix}
                       width={card.w}
                       height={CARD_H}
                       style={{ border: 0, display: 'block', background: '#0e0e0e', pointerEvents: 'none' }}
