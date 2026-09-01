@@ -6,7 +6,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { publicSettings, writeSettings, type WigssSettings } from '@/lib/settings';
 
 export async function GET() {
-  return NextResponse.json({ success: true, data: publicSettings() });
+  return NextResponse.json({
+    success: true,
+    data: {
+      ...publicSettings(),
+      // P4(PROD-634): CLI 가 넘긴 타깃 포트를 에디터에 배선한다 —
+      // page.tsx 의 :3001 하드코딩을 대체 (--port 가 실제로 동작하게)
+      targetPort: process.env.TARGET_PORT || '3001',
+    },
+  });
 }
 
 export async function POST(req: NextRequest) {

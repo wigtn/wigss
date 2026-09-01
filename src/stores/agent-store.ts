@@ -41,6 +41,12 @@ interface AgentState {
   // Demo mode
   isDemoMode: boolean;
 
+  /**
+   * P5(PROD-635): 저장 직후 iframe 리로드가 끝나면(load 이벤트) 재스캔을
+   * 트리거하기 위한 플래그. 고정 3초 대기를 대체한다.
+   */
+  awaitingRescan: boolean;
+
   // Reconnect
   _reconnectTimer: ReturnType<typeof setTimeout> | null;
   _reconnectAttempts: number;
@@ -74,6 +80,7 @@ interface AgentState {
   setVerificationReports: (reports: FidelityReport[] | null) => void;
   clearVerification: () => void;
   setVerificationWarning: (msg: string | null) => void;
+  setAwaitingRescan: (v: boolean) => void;
 
   // WebSocket send helper
   sendMessage: (type: string, payload: unknown) => void;
@@ -109,6 +116,7 @@ const initialState = {
   verificationReports: null,
   verificationWarning: null,
   isDemoMode: false,
+  awaitingRescan: false,
   _reconnectTimer: null,
   _reconnectAttempts: 0,
 };
@@ -196,6 +204,8 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     }),
 
   setVerificationWarning: (msg) => set({ verificationWarning: msg }),
+
+  setAwaitingRescan: (v) => set({ awaitingRescan: v }),
 
   sendMessage: (type, payload) => {
     const { ws, connected } = get();

@@ -160,6 +160,7 @@ export async function POST(req: NextRequest) {
       let content = originalContent;
 
       let fileAppliedCount = 0;
+      const appliedEdits: { original: string; modified: string }[] = [];
       for (const diff of fileDiffs) {
         const result = applyDiff(content, diff);
         if (!result.ok) {
@@ -170,13 +171,14 @@ export async function POST(req: NextRequest) {
           content = result.content;
           fileAppliedCount++;
           applied++;
+          appliedEdits.push({ original: diff.original, modified: diff.modified });
         }
       }
 
       if (fileAppliedCount > 0) {
-        // Capture the prior contents *before* writing so /api/rollback can
-        // restore verbatim if the editor's fidelity verification fails.
-        backupFiles.push({ path: absolutePath, originalContent });
+        // P4(PROD-634): 파일 스냅샷 대신 적용한 편집만 기억한다. 롤백은 역치환이라
+        // 사용자의 동시 수정을 덮어쓰지 않는다.
+        backupFiles.push({ path: absolutePath, edits: appliedEdits });
         await writeSourceFile(absolutePath, content);
         filesChanged.push(file);
         console.log(`[Apply] Written ${file}: ${fileAppliedCount} diff(s) applied`);

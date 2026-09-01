@@ -4,16 +4,17 @@ import { program } from 'commander';
 import { spawn } from 'child_process';
 import { resolve, dirname, join } from 'path';
 import { fileURLToPath } from 'url';
-import { existsSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { homedir } from 'os';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, '..');
+const pkg = JSON.parse(readFileSync(join(projectRoot, 'package.json'), 'utf8'));
 
 program
   .name('wigss')
   .description('WIGSS (Style Shaper) — visual code refactoring with always-on AI agent')
-  .version('0.1.0')
+  .version(pkg.version)
   .option('-p, --port <port>', 'target dev server port', '3000')
   .option('--wigss-port <port>', 'WIGSS editor port', '4000')
   .option('--demo', 'run with built-in demo-target')
@@ -44,7 +45,7 @@ async function main() {
 
   console.log(`
   ╔══════════════════════════════════════╗
-  ║     WIGSS — Style Shaper v0.2.0     ║
+  ║     WIGSS — Style Shaper v${pkg.version.padEnd(6)}    ║
   ╠══════════════════════════════════════╣
   ║  Target:  http://localhost:${targetPort.toString().padEnd(10)}║
   ║  Editor:  http://localhost:${wigssPort.toString().padEnd(10)}║

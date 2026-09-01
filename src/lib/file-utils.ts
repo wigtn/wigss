@@ -60,31 +60,21 @@ export async function readSourceFile(filePath: string): Promise<string> {
 }
 
 /**
- * Write source file with automatic backup creation.
- * Creates a timestamped .bak file before writing.
+ * Write source file.
+ *
+ * P4(PROD-634): `.bak.<timestamp>` 사이드카 생성을 없앴다. 버전 관리되는
+ * 저장소에 정리되지 않는 잔여물을 남기는 것 자체가 오염이고(C2), 되돌리기는
+ * apply-backup 의 역치환 스토어가 담당한다.
  */
 export async function writeSourceFile(filePath: string, content: string): Promise<void> {
-  // Ensure file exists before creating backup
   try {
     await fs.access(filePath);
-    await createBackup(filePath);
   } catch {
-    // File doesn't exist yet; no backup needed.
-    // Ensure parent directory exists.
+    // File doesn't exist yet — ensure parent directory exists.
     await fs.mkdir(path.dirname(filePath), { recursive: true });
   }
 
   await fs.writeFile(filePath, content, 'utf-8');
-}
-
-/**
- * Create a timestamped backup of a file.
- * Returns the backup file path.
- */
-export async function createBackup(filePath: string): Promise<string> {
-  const backupPath = `${filePath}.bak.${Date.now()}`;
-  await fs.copyFile(filePath, backupPath);
-  return backupPath;
 }
 
 /**

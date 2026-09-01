@@ -17,11 +17,24 @@ export default function EditorPage() {
     if (initialized.current) return;
     initialized.current = true;
 
-    // Set default target URL (demo-target)
-    useEditorStore.getState().setTargetUrl('http://localhost:3001');
-
-    // Set project path from URL params
+    // P4(PROD-634): 타깃 URL 배선 — CLI 의 --port 가 실제로 iframe 에 닿는다.
+    // 우선순위: ?target= 쿼리 → 서버의 TARGET_PORT(/api/settings) → 기본 :3001
     const params = new URLSearchParams(window.location.search);
+    const explicitTarget = params.get('target');
+    if (explicitTarget) {
+      useEditorStore.getState().setTargetUrl(explicitTarget);
+    } else {
+      fetch('/api/settings')
+        .then((r) => r.json())
+        .then(({ data }) => {
+          const port = data?.targetPort || '3001';
+          useEditorStore.getState().setTargetUrl(`http://localhost:${port}`);
+        })
+        .catch(() => {
+          useEditorStore.getState().setTargetUrl('http://localhost:3001');
+        });
+    }
+
     // projectPath is resolved server-side from SOURCE_PATH env var.
     // Client passes 'auto' to signal the server should use its default.
     const projectPath = params.get('project') || 'auto';
