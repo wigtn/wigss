@@ -12,6 +12,19 @@ function applyDiff(content: string, diff: CodeDiff): { ok: true; content: string
     return { ok: false, reason: 'Rejected: empty original or modified' };
   }
 
+  // P2(PROD-632): 주소 경로가 실어 보낸 문자 범위. indexOf 재조회 없이 이 오프셋으로
+  // 치환하되, 그 자리의 현재 내용이 original 과 다르면 드리프트로 보고 거부한다 —
+  // 저장 사이에 파일이 바뀌었다는 뜻이므로 재스캔이 정답이다.
+  if (diff.range) {
+    const { start, end } = diff.range;
+    if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end > content.length || start >= end) {
+      return { ok: false, reason: 'Rejected: range out of bounds' };
+    }
+    if (content.slice(start, end) !== original) {
+      return { ok: false, reason: 'Rejected: drift — range content no longer matches (rescan needed)' };
+    }
+  }
+
   // Safety: must contain className or style (CSS-only changes)
   // For .css/.scss files, skip this check (CSS properties don't have className/style)
   const isCssFile = diff.file.endsWith('.css') || diff.file.endsWith('.scss');
@@ -25,6 +38,10 @@ function applyDiff(content: string, diff: CodeDiff): { ok: true; content: string
 
   // Safety: no JS logic changes (skip for CSS files which don't have JS)
   if (isCssFile) {
+    if (diff.range) {
+      const { start, end } = diff.range;
+      return { ok: true, content: `${content.slice(0, start)}${modified}${content.slice(end)}` };
+    }
     // CSS files: just verify the original exists
     if (original.length > 0) {
       const foundIndex = content.indexOf(original);
@@ -45,7 +62,11 @@ function applyDiff(content: string, diff: CodeDiff): { ok: true; content: string
     }
   }
 
-  // Apply: find and replace
+  // Apply: range 가 있으면 오프셋 치환 (P2), 없으면 기존 indexOf (하위 호환 D6)
+  if (diff.range) {
+    const { start, end } = diff.range;
+    return { ok: true, content: `${content.slice(0, start)}${modified}${content.slice(end)}` };
+  }
   if (original.length > 0) {
     const foundIndex = content.indexOf(original);
     if (foundIndex !== -1) {

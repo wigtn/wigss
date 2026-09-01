@@ -18,6 +18,12 @@ export interface DetectedComponent {
   elementIds: string[];
   boundingBox: BoundingBox;
   sourceFile: string;
+  /**
+   * P2(PROD-632): jsx-dev-runtime 이 부착한 소스 주소 "file:line:col".
+   * 스캔 시점 DOM 의 data-wigss 값이며, 있으면 조인이 검색이 아니라 조회가 된다.
+   * 서버(/api/refactor)가 projectPath 기준 상대 경로로 정규화해 소비한다.
+   */
+  sourceAddress?: string;
   reasoning: string;
   children?: DetectedComponent[];
   depth?: number;
@@ -79,6 +85,12 @@ export interface CodeDiff {
   lineNumber: number;
   explanation: string;
   strategy?: CssStrategy;
+  /**
+   * P2(PROD-632): 치환할 문자 범위. 있으면 /api/apply 는 indexOf 재조회 없이
+   * 이 오프셋으로 치환하고, 그 자리의 현재 텍스트가 original 과 다르면
+   * 드리프트로 간주해 거부한다. 없으면 기존 indexOf 경로(하위 호환, PRD D6).
+   */
+  range?: { start: number; end: number };
 }
 
 // === Feedback Types ===
@@ -242,7 +254,14 @@ export interface StyleIntent {
     elementPath?: string[];
     componentName?: string;
     cssStrategy?: CssStrategyInfo;
+    /** P2: "file:line:col" — 있으면 주소 우선 경로를 탄다 */
+    address?: string;
   };
+  /**
+   * P3(PROD-633): 편집 시점의 에디터 뷰포트 폭(px). 지배 토큰 선택에 쓰인다.
+   * 미전달 시 1280(lg) 가정.
+   */
+  viewportWidth?: number;
 }
 
 /**

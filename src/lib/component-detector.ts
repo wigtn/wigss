@@ -18,6 +18,8 @@ export interface RawScanElement {
   id: string;
   tagName: string;
   className: string;
+  /** P2: data-wigss 소스 주소 "file:line:col". 스캔 런타임이 채운다. */
+  address?: string | null;
   boundingBox: { x: number; y: number; width: number; height: number };
   visible: boolean;
   attributes: Record<string, string>;
@@ -230,6 +232,7 @@ export function detectComponents(rawElements: RawScanElement[]): DetectedCompone
       elementIds: [el.id],
       boundingBox: { ...el.boundingBox },
       sourceFile: inferSourceFile(el),
+      sourceAddress: el.address || undefined,
       reasoning: `data-component="${el.attributes['data-component'] || ''}" tag=${el.tagName}`,
       depth: el.depth,
       fullClassName: typeof el.className === 'string' ? el.className : '',
@@ -265,6 +268,7 @@ export function detectComponents(rawElements: RawScanElement[]): DetectedCompone
         elementIds: [el.id],
         boundingBox: { ...el.boundingBox },
         sourceFile: inferSourceFile(el),
+      sourceAddress: el.address || undefined,
         reasoning: `grid container with ${children.length} similar children`,
         depth: el.depth,
         fullClassName: typeof el.className === 'string' ? el.className : '',
@@ -283,6 +287,7 @@ export function detectComponents(rawElements: RawScanElement[]): DetectedCompone
           elementIds: [child.id],
           boundingBox: { ...child.boundingBox },
           sourceFile: inferSourceFile(child),
+          sourceAddress: child.address || undefined,
           reasoning: `grid child card`,
           depth: child.depth,
           fullClassName: typeof child.className === 'string' ? child.className : '',
@@ -301,6 +306,7 @@ export function detectComponents(rawElements: RawScanElement[]): DetectedCompone
         elementIds: [el.id],
         boundingBox: { ...el.boundingBox },
         sourceFile: inferSourceFile(el),
+      sourceAddress: el.address || undefined,
         reasoning: `${layout} container`,
         depth: el.depth,
         fullClassName: typeof el.className === 'string' ? el.className : '',
@@ -329,6 +335,7 @@ export function detectComponents(rawElements: RawScanElement[]): DetectedCompone
       elementIds: [el.id],
       boundingBox: { ...el.boundingBox },
       sourceFile: inferSourceFile(el),
+      sourceAddress: el.address || undefined,
       reasoning: `significant element (${el.boundingBox.width}x${el.boundingBox.height})`,
       depth: el.depth,
       fullClassName: typeof el.className === 'string' ? el.className : '',
