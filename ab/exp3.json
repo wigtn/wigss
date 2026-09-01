@@ -1,10 +1,10 @@
 {
   "collect": {
     "files": 40,
-    "aBytes": 144193,
+    "aBytes": 106392,
     "bBytes": 284,
-    "aMs": 3.6719194000000006,
-    "bMs": 0.06718340000000561
+    "aMs": 4.522455533333334,
+    "bMs": 0.07331393333333078
   },
   "rollback": {
     "aKeptUserEdit": false,

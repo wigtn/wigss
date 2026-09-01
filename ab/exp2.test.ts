@@ -37,7 +37,7 @@ const CHANGE: ComponentChange = {
   to: { x: 0, y: 0, width: 256, height: 256 },
 };
 
-function component(): DetectedComponent {
+function component(address?: string): DetectedComponent {
   return {
     id: 'x',
     name: 'Card',
@@ -45,6 +45,7 @@ function component(): DetectedComponent {
     elementIds: ['x'],
     boundingBox: { x: 0, y: 0, width: 256, height: 192 },
     sourceFile: '',
+    sourceAddress: address,
     reasoning: 'exp2',
     fullClassName: CLS,
   };
@@ -96,11 +97,13 @@ describe('실험 2 — 중복 밀도 vs 조인 정확도', () => {
         const targetContent = files[k].content;
         const addr = addressOfDiv(targetContent);
 
-        // ── A ──
+        // ── A ── (v3: 스캔이 주소를 실어준다)
         const { diffs } = await generateRefactorResult({
           changes: [CHANGE],
-          components: [component()],
+          components: [component(`${targetPath}:${addr.line}:${addr.column}`)],
           sources: files,
+          viewportWidth: 1280,
+          tailwindProject: true,
         });
         if (diffs.length > 0 && diffs[0].file === targetPath) {
           const r = applyDiff(targetContent, diffs[0]);
@@ -129,7 +132,13 @@ describe('실험 2 — 중복 밀도 vs 조인 정확도', () => {
       const REPS = 60;
       const addr0 = addressOfDiv(files[0].content);
       const runOnceA = async () => {
-        await generateRefactorResult({ changes: [CHANGE], components: [component()], sources: files });
+        await generateRefactorResult({
+          changes: [CHANGE],
+          components: [component(`Card0.tsx:${addr0.line}:${addr0.column}`)],
+          sources: files,
+          viewportWidth: 1280,
+          tailwindProject: true,
+        });
       };
       const runOnceB = () => {
         const c = files[0].content;
@@ -179,14 +188,12 @@ describe('실험 2 — 중복 밀도 vs 조인 정확도', () => {
     }
     L.push('');
     const last = rows[rows.length - 1];
+    const aFollowsInvN = rows.every((r) => Math.abs(r.aPct - 100 / r.n) < 1);
     L.push(
       `N=${last.n} 에서 A는 ${last.aPct.toFixed(0)}%, B는 ${last.bPct.toFixed(0)}%. ` +
-        `정확도는 정확히 1/N 을 따른다 — A는 항상 "첫 번째 일치"를 고르기 때문이다.`,
-    );
-    L.push('');
-    L.push(
-      '지연은 N에 비례하지 않는다. A의 리라이터가 첫 일치에서 순회를 멈추기 때문이다. ' +
-        '실제 비용은 파싱이 아니라 /api/refactor 의 파일 수집 단계에 있고, 그건 실험 3에서 실측한다.',
+        (aFollowsInvN
+          ? '정확도는 정확히 1/N 을 따른다 — A는 항상 "첫 번째 일치"를 고르기 때문이다.'
+          : 'A가 주소 기반 조인으로 전환되어 중복 밀도와 무관해졌다 (v3 · PROD-632).'),
     );
 
     writeFileSync(join(__dirname, 'exp2.md'), L.join('\n'));
