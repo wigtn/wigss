@@ -1,6 +1,6 @@
 export default function Hero() {
   return (
-    <section data-component="hero" className="mb-8 ml-12 h-[501px]">
+    <section data-component="hero" className="mb-8 ml-12 h-80 lg:h-96">
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-violet-600/20 via-gray-900 to-fuchsia-600/20 border border-gray-800 p-12 w-[1077px] h-96">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(139,92,246,0.15),transparent_60%)] w-[1214px]" />
         <div className="relative">
