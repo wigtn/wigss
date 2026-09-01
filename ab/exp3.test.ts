@@ -125,6 +125,11 @@ describe('실험 3 — 저장 비용과 롤백 안전성', () => {
     L.push(
       `HMR 예산(50~300ms) 대비 A의 수집 단계만으로 ${((aMs / 150) * 100).toFixed(1)}% 를 소비한다 (기준 150ms).`,
     );
+    L.push('');
+    L.push(
+      'v3(P2, PROD-632) 이후 출하 파이프라인은 변경된 컴포넌트 전원이 주소를 가지면 B열로 동작한다 — ' +
+        'A열은 주소가 하나라도 없을 때의 저하 경로(D6)로만 남는다.',
+    );
 
     // ── 3b ──
     const dir = mkdtempSync(join(tmpdir(), 'wigss-rollback-'));
