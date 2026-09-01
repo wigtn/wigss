@@ -135,4 +135,11 @@ export function revertEdits(
 }
 
 /** Default process-wide backup store used by the API routes. */
-export const defaultBackupStore: BackupStore = createBackupStore();
+/**
+ * 프로세스 전역 싱글턴 — 반드시 globalThis 에 고정한다.
+ * Next dev 는 라우트 핸들러를 별도 번들로 컴파일하므로 모듈 스코프 싱글턴은
+ * /api/apply 와 /api/rollback 이 서로 다른 인스턴스를 보게 된다 (실측:
+ * apply 가 만든 backupId 를 rollback 이 404 로 모름 — 캔버스 E2E 가 적발).
+ */
+const g = globalThis as typeof globalThis & { __wigssBackupStore?: BackupStore };
+export const defaultBackupStore: BackupStore = (g.__wigssBackupStore ??= createBackupStore());

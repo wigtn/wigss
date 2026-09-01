@@ -19,8 +19,20 @@
  *   해당 컴포넌트로 팬·선택, 라우트 클릭은 카드 전체를 그 라우트로 이동.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { ComponentChange, DetectedComponent } from '@/types';
+import type {
+  BoundingBox,
+  ComponentChange,
+  DetectedComponent,
+  FidelityExpectation,
+  FidelityMismatch,
+  FidelityReport,
+} from '@/types';
 import { detectComponents, type RawScanElement } from '@/lib/component-detector';
+import {
+  buildExpectationsFromChanges,
+  capturePriorBoxes,
+  extractActualBoxes,
+} from '@/lib/fidelity-client';
 
 const HEADER_H = 32;
 const CARD_H = 1500;
@@ -49,6 +61,21 @@ interface Enriched {
   comp: DetectedComponent;
   parentKey: string | null;
   order: number; // 문서 순서 (스캔 배열 인덱스) — JSX 형제 순서의 근사
+}
+
+/** 저장 후 재스캔이 도착하면 소비되는 검증 대기 상태 (에디터의 verify 루프와 동등) */
+interface PendingVerify {
+  expectations: FidelityExpectation[];
+  priorBoxes: Record<string, BoundingBox>;
+  backupId: string;
+  retriesLeft: number;
+  /** 불일치가 실제인지 확인하기 위한 재측정 여유 — Next 재컴파일 경합 흡수 */
+  staleRetries: number;
+  /** 새로 쓴 클래스 토큰 — 스캔된 DOM 에 이 토큰이 보여야 새 렌더다 */
+  probeTokens: string[];
+  address?: string;
+  explanation: string;
+  startedAt: number;
 }
 
 interface DragState {
@@ -84,6 +111,13 @@ export default function CanvasPage() {
   const activeRef = useRef(activeId);
   activeRef.current = activeId;
   const rescanOnLoad = useRef(false);
+  const pendingVerify = useRef<PendingVerify | null>(null);
+
+  /* 프리뷰 원복: iframe DOM 에만 걸었던 낙관적 스타일을 걷는다 */
+  const clearPreview = useCallback(() => {
+    const frame = iframesRef.current.get(activeRef.current);
+    frame?.contentWindow?.postMessage({ type: 'wigss-preview-clear' }, '*');
+  }, []);
 
   const activeCard = CARDS.find((c) => c.id === activeId)!;
 
@@ -230,6 +264,30 @@ export default function CanvasPage() {
       return { toIndex, lineX, lineY, lineH };
     };
 
+    /* 낙관적 DOM 프리뷰 — 프레임당 1회, iframe 의 실제 요소에 인라인으로.
+     * 소스에는 절대 쓰지 않는다. 크기는 width/height 라 이웃의 리플로우까지
+     * 실시간으로 보이고(정직한 프리뷰), 이동은 transform 고스트다. */
+    let rafId = 0;
+    const sendPreview = () => {
+      rafId = 0;
+      const d = dragRef.current;
+      if (!d) return;
+      const me = enrichedRef.current.find((x) => x.comp.id === d.compId);
+      const frame = iframesRef.current.get(activeRef.current);
+      if (!me || !frame?.contentWindow) return;
+      const styles =
+        d.mode === 'move'
+          ? {
+              transform: `translate(${Math.round(d.currentBox.x - d.startBox.x)}px, ${Math.round(d.currentBox.y - d.startBox.y)}px)`,
+              willChange: 'transform',
+            }
+          : {
+              width: `${Math.round(d.currentBox.width)}px`,
+              height: `${Math.round(d.currentBox.height)}px`,
+            };
+      frame.contentWindow.postMessage({ type: 'wigss-preview', index: me.order, styles }, '*');
+    };
+
     const onMove = (e: PointerEvent) => {
       setDrag((d) => {
         if (!d) return d;
@@ -248,6 +306,7 @@ export default function CanvasPage() {
         }
         return { ...d, currentBox: box, insertion: computeInsertion(box) };
       });
+      if (!rafId) rafId = requestAnimationFrame(sendPreview);
     };
 
     const onUp = () => {
@@ -259,14 +318,23 @@ export default function CanvasPage() {
         Math.abs(d.currentBox.y - d.startBox.y) > 2 ||
         Math.abs(d.currentBox.width - d.startBox.width) > 2 ||
         Math.abs(d.currentBox.height - d.startBox.height) > 2;
-      if (!moved) return;
-      if (d.insertion) void commitReorder(d);
-      else void commitStyle(d);
+      if (!moved) {
+        clearPreview();
+        return;
+      }
+      if (d.insertion) {
+        clearPreview(); // 이동 고스트는 걷고, 순서 변경은 코드로 확정한다
+        void commitReorder(d);
+      } else {
+        // 프리뷰는 리로드가 실제 결과로 교체할 때까지 유지 — 스냅백 없는 체감
+        void commitStyle(d);
+      }
     };
 
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
     return () => {
+      if (rafId) cancelAnimationFrame(rafId);
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
     };
@@ -278,7 +346,7 @@ export default function CanvasPage() {
     const me = enrichedRef.current.find((x) => x.comp.id === d.compId);
     if (!me?.comp.sourceAddress || !d.insertion) return;
     setBusy(true);
-    setToast(`순서 변경 적용 중…`);
+    setToast('Reordering…');
     try {
       const res = await fetch('/api/restructure', {
         method: 'POST',
@@ -290,16 +358,19 @@ export default function CanvasPage() {
         }),
       });
       const json = await res.json();
-      setToast(json.success ? `✓ ${json.data.explanation}` : `순서 변경 불가: ${json.error?.message}`);
+      setToast(json.success ? `✓ ${json.data.explanation}` : `Reorder refused: ${json.error?.message}`);
     } catch (err) {
-      setToast(`순서 변경 실패: ${err instanceof Error ? err.message : String(err)}`);
+      setToast(`Reorder failed: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setBusy(false);
       reloadActive();
     }
   };
 
-  /* ── 확정: 스타일 (이동→마진 스냅 / 크기) — 활성 카드 폭이 지배 토큰을 정한다 ── */
+  /* ── 확정: 스타일 (이동→마진 스냅 / 크기) — 활성 카드 폭이 지배 토큰을 정한다.
+   * 에디터와 동일한 검증 루프: apply 후 재스캔 → /api/verify → 불일치면
+   * 자동 롤백 → T1 수선 1회 → 재검증. 최종 불일치도 롤백 — 코드가 맞아도
+   * 화면이 다르면(그리드가 폭을 무시하는 경우 등) 남기지 않는다. ── */
   const commitStyle = async (d: DragState) => {
     const me = enrichedRef.current.find((x) => x.comp.id === d.compId);
     if (!me) return;
@@ -309,22 +380,26 @@ export default function CanvasPage() {
       from: { ...d.startBox },
       to: { ...d.currentBox },
     };
+    const comps = enrichedRef.current.map((x) => x.comp);
+    const priorBoxes = capturePriorBoxes([change], comps);
+    const expectations = buildExpectationsFromChanges([change], comps);
     setBusy(true);
-    setToast('저장 중…');
+    setToast('Saving…');
     try {
       const ref = await fetch('/api/refactor', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           changes: [change],
-          components: enrichedRef.current.map((x) => x.comp),
+          components: comps,
           projectPath: 'auto',
           viewportWidth: CARDS.find((c) => c.id === activeRef.current)!.w,
         }),
       });
       const refJson = await ref.json();
       if (!refJson.success || refJson.data.diffs.length === 0) {
-        setToast(`적용 불가: ${refJson.data?.skipped?.[0]?.reason ?? '알 수 없음'}`);
+        clearPreview();
+        setToast(`Skipped: ${refJson.data?.skipped?.[0]?.reason ?? 'unknown'}`);
         return;
       }
       const ap = await fetch('/api/apply', {
@@ -333,14 +408,163 @@ export default function CanvasPage() {
         body: JSON.stringify({ diffs: refJson.data.diffs, projectPath: 'auto' }),
       });
       const apJson = await ap.json();
-      setToast(apJson.success ? `✓ ${refJson.data.diffs[0].explanation}` : `적용 실패`);
+      if (!apJson.success) {
+        clearPreview();
+        setToast('Apply failed');
+        return;
+      }
+      const explanation = refJson.data.diffs[0].explanation as string;
+      const backupId = apJson.data?.backupId as string | undefined;
+      // 새 렌더 판별용: modified 에만 있는 클래스 토큰 (예: lg:h-[428px])
+      const d0 = refJson.data.diffs[0] as { original: string; modified: string };
+      const probeTokens = (d0.modified.match(/[^\s"']+/g) ?? []).filter(
+        (t) => !d0.original.includes(t) && t.length > 2,
+      );
+      if (expectations.length > 0 && backupId) {
+        pendingVerify.current = {
+          expectations,
+          priorBoxes,
+          backupId,
+          retriesLeft: 1,
+          staleRetries: 4,
+          probeTokens,
+          address: me.comp.sourceAddress,
+          explanation,
+          startedAt: performance.now(),
+        };
+        setToast(`✓ ${explanation} — verifying…`);
+      } else {
+        setToast(`✓ ${explanation}`);
+      }
     } catch (err) {
-      setToast(`저장 실패: ${err instanceof Error ? err.message : String(err)}`);
+      clearPreview();
+      setToast(`Save failed: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setBusy(false);
-      reloadActive();
+      // 파일워처(chokidar)가 변경을 무효화하기 전에 리로드하면 낡은 빌드를
+      // 통째로 받는다 (실측: 편집 전 384px 가 그대로 측정됨). 한 박자 늦춘다.
+      setTimeout(reloadActive, 350);
     }
   };
+
+  /* ── 재스캔 도착 후 검증 소비 — 실패 시 롤백 → T1 1회 → 재검증 ── */
+  const runCanvasVerify = useCallback(async () => {
+    const pv = pendingVerify.current;
+    if (!pv) return;
+    pendingVerify.current = null;
+    const comps = enrichedRef.current.map((x) => x.comp);
+    const ids = pv.expectations.map((e) => e.componentId);
+    const actualBoxes = extractActualBoxes(ids, comps);
+    if (ids.some((id) => !actualBoxes[id])) {
+      setToast(`✓ ${pv.explanation} (target lost in rescan — verify skipped)`);
+      return;
+    }
+    /* 새 렌더 확인: 우리가 쓴 토큰이 스캔된 className 에 아직 없다면 이 측정은
+     * 편집 전 페이지다 (Next 재컴파일/HMR 경합 — 실측 384px vs 기대 428px).
+     * 낡은 측정으로 판정하지 않고 기다렸다 다시 잰다. */
+    const editedComp = comps.find((c) => c.id === ids[0]);
+    const cls = editedComp?.fullClassName ?? '';
+    if (cls && pv.probeTokens.length > 0 && !pv.probeTokens.every((t) => cls.includes(t))) {
+      if (pv.staleRetries > 0) {
+        pendingVerify.current = { ...pv, staleRetries: pv.staleRetries - 1 };
+        setToast(`Verify wait — fresh render pending (${pv.staleRetries})`);
+        // 재스캔으로도 낡은 렌더가 반복되면 중간에 한 번은 완전 리로드로 끊는다
+        if (pv.staleRetries === 2) reloadActive();
+        else setTimeout(() => requestScan(activeRef.current), 800);
+        return;
+      }
+      setToast(`✓ ${pv.explanation} (fresh render unconfirmed — verify skipped)`);
+      return;
+    }
+    try {
+      const res = await fetch('/api/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ expectations: pv.expectations, priorBoxes: pv.priorBoxes, actualBoxes }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        setToast(`Verify error: ${json.error?.message ?? res.status}`);
+        return;
+      }
+      if (json.data.passed) {
+        setToast(`✓ ${pv.explanation} · verified +${Math.round(performance.now() - pv.startedAt)}ms`);
+        return;
+      }
+      /* 불일치 ≠ 즉시 실패: 편집 직후의 재스캔은 Next 가 아직 새 코드를
+       * 컴파일하기 전의 낡은 렌더를 측정했을 수 있다 (실측: 428px 기대에
+       * 구버전 384px 측정 → 가짜 롤백). 판정을 내리기 전에 짧게 기다렸다
+       * 다시 재고, 같은 불일치가 반복될 때만 진짜로 취급한다. */
+      if (pv.staleRetries > 0) {
+        pendingVerify.current = { ...pv, staleRetries: pv.staleRetries - 1 };
+        setToast(`Verify wait — confirming stable render (${pv.staleRetries})`);
+        if (pv.staleRetries === 2) reloadActive();
+        else setTimeout(() => requestScan(activeRef.current), 600);
+        return;
+      }
+      const reports = json.data.reports as FidelityReport[];
+      const failed = reports.find(
+        (r) => !r.passed && r.mismatches.some((m: FidelityMismatch) => m.property !== '__measurement__'),
+      );
+      const mm = (failed?.mismatches ?? []).filter((m: FidelityMismatch) => m.property !== '__measurement__');
+      const summary = mm.map((m) => `${m.property} ${m.expected}→${m.actual}`).join(', ');
+
+      // 1) 자동 롤백 (역치환 — 사용자 동시 수정은 보존)
+      const rb = await fetch('/api/rollback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ backupId: pv.backupId }),
+      });
+      if (!rb.ok) {
+        setToast(`Mismatch (${summary}) · rollback refused — file changed since, manual check needed`);
+        return;
+      }
+      // 2) T1 수선 (남은 횟수 있고 주소가 있을 때만)
+      if (pv.retriesLeft > 0 && pv.address && failed) {
+        setToast(`Mismatch (${summary}) → rolled back, trying T1 repair…`);
+        const exp = pv.expectations.find((e) => e.componentId === failed.componentId);
+        const rp = await fetch('/api/repair', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            address: pv.address,
+            targetStyles: exp?.expectedStyles ?? {},
+            viewportWidth: CARDS.find((c) => c.id === activeRef.current)!.w,
+            projectPath: 'auto',
+            mismatches: mm,
+          }),
+        });
+        const rpJson = await rp.json();
+        if (rp.ok && rpJson.success) {
+          pendingVerify.current = {
+            ...pv,
+            backupId: rpJson.data.backupId,
+            retriesLeft: pv.retriesLeft - 1,
+            staleRetries: 4,
+            probeTokens: [],
+            explanation: rpJson.data.explanation,
+          };
+          reloadActive();
+          return;
+        }
+        setToast(
+          rpJson.error?.code === 'NO_AUTH'
+            ? `Mismatch (${summary}) — rolled back · T1 skipped (no auth)`
+            : `Mismatch (${summary}) — rolled back · T1 refused: ${rpJson.error?.message ?? rp.status}`,
+        );
+      } else {
+        setToast(`Mismatch (${summary}) — not expressible in this layout, rolled back`);
+      }
+      reloadActive();
+    } catch (err) {
+      setToast(`Verify failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }, [requestScan]);
+
+  /* 재스캔(enriched 갱신)이 곧 검증 트리거 — 타이머 없이 이벤트로 */
+  useEffect(() => {
+    if (enriched.length > 0 && pendingVerify.current) void runCanvasVerify();
+  }, [enriched, runCanvasVerify]);
 
   const reloadActive = () => {
     rescanOnLoad.current = true;
@@ -424,14 +648,14 @@ export default function CanvasPage() {
           <span data-testid="toast" style={{ fontSize: 12, color: busy ? '#b4b4b4' : '#3ecf8e' }}>{toast}</span>
         )}
         <a href="/" style={{ fontSize: 12, color: '#7e7e7e', textDecoration: 'none', border: '1px solid #2e2e2e', borderRadius: 5, padding: '4px 10px' }}>
-          기존 에디터
+          Classic editor
         </a>
       </div>
 
       {/* ── 좌측 레일: 라우트(정적 스캔) + 이 라우트의 컴포넌트 트리 ── */}
       <div data-testid="rail" style={{ position: 'fixed', top: 44, bottom: 28, left: 0, width: RAIL_W, background: '#181818', borderRight: '1px solid #2e2e2e', zIndex: 90, overflowY: 'auto', padding: '10px 0 16px', fontSize: 12.5 }}>
         <div style={{ padding: '6px 14px 4px', fontSize: 10.5, letterSpacing: '.08em', color: '#7e7e7e', fontWeight: 600 }}>ROUTES</div>
-        {routes.length === 0 && <div style={{ padding: '4px 14px', color: '#5c5c5c' }}>스캔 중…</div>}
+        {routes.length === 0 && <div style={{ padding: '4px 14px', color: '#5c5c5c' }}>scanning…</div>}
         {routes.map((r) => {
           const isActive = r.path === route;
           return (
@@ -450,7 +674,7 @@ export default function CanvasPage() {
         })}
 
         <div style={{ padding: '16px 14px 4px', fontSize: 10.5, letterSpacing: '.08em', color: '#7e7e7e', fontWeight: 600 }}>TREE · THIS ROUTE</div>
-        {tree.length === 0 && <div style={{ padding: '4px 14px', color: '#5c5c5c' }}>활성 카드 스캔 대기…</div>}
+        {tree.length === 0 && <div style={{ padding: '4px 14px', color: '#5c5c5c' }}>waiting for active card scan…</div>}
         {tree.map(({ item, depth, uses }) => {
           const isSel = item.comp.id === selected;
           const noAddr = !item.comp.sourceAddress;
@@ -526,7 +750,7 @@ export default function CanvasPage() {
                               {(isSel || isDragged) && (
                                 <span style={{ position: 'absolute', top: -18 * inv, left: 0, fontFamily: 'monospace', fontSize: 10.5 * inv, background: '#3ecf8e', color: '#0d2a1e', padding: `${1 * inv}px ${6 * inv}px`, borderRadius: 3, whiteSpace: 'nowrap', fontWeight: 600 }}>
                                   {item.comp.name}
-                                  {item.comp.sourceAddress ? '' : ' · 주소 없음'}
+                                  {item.comp.sourceAddress ? '' : ' · no addr'}
                                 </span>
                               )}
                               {isSel && !drag && (
@@ -557,7 +781,7 @@ export default function CanvasPage() {
       {/* ── 하단 바 ── */}
       <div style={{ position: 'fixed', insetInline: 0, bottom: 0, height: 28, background: '#181818', borderTop: '1px solid #2e2e2e', display: 'flex', alignItems: 'center', gap: 16, padding: '0 14px', zIndex: 100, fontFamily: 'monospace', fontSize: 11, color: '#7e7e7e' }}>
         <span>{Math.round(world.zoom * 100)}%</span>
-        <span>⌘+스크롤 줌 · 스크롤 팬 · 카드 헤더 클릭 = 활성화</span>
+        <span>⌘+scroll zoom · scroll pan · click a card header to activate</span>
         <span style={{ flex: 1 }} />
         <span data-testid="component-count">components {visible.length}</span>
         <span>address join {visible.filter((v) => v.comp.sourceAddress).length}/{visible.length}</span>

@@ -8,8 +8,10 @@
  *
  * 프로토콜 (기존과 동일 + address 추가):
  *   수신  wigss-scan-request              → 요소 스캔 후 wigss-scan-result 응답
- *   수신  wigss-live-style {className,styles} → 드래그 중 라이브 미리보기
- *   수신  wigss-reset-styles              → 라이브 스타일 원복
+ *   수신  wigss-live-style {className,styles} → 드래그 중 라이브 미리보기 (레거시)
+ *   수신  wigss-reset-styles              → 라이브 스타일 원복 (레거시)
+ *   수신  wigss-preview {index,styles}    → 스캔 순서 index 요소에 DOM 전용 프리뷰
+ *   수신  wigss-preview-clear             → 프리뷰만 원복 (기존 인라인 스타일 보존)
  *   발신  wigss-page-height {height}      → 문서 높이 보고
  *   발신  wigss-scan-result {elements, viewport}
  *
@@ -28,7 +30,7 @@ const SKIP_TAGS = ['SCRIPT', 'STYLE', 'NOSCRIPT', 'META', 'LINK', 'HEAD', 'BR', 
 const INLINE_TAGS = ['SPAN', 'A', 'STRONG', 'EM', 'B', 'I', 'SMALL', 'CODE'];
 const ATTR_LIST = ['id', 'class', 'data-component', 'role', 'href', 'src', 'alt'];
 
-function scanElements(opts) {
+function scanElements(opts, nodesOut) {
   const results = [];
   let count = 0;
 
@@ -104,6 +106,8 @@ function scanElements(opts) {
       childCount: node.children.length,
       parentId,
     });
+    // 프리뷰 조준용: results 와 같은 순서로 실제 노드를 기록한다
+    if (nodesOut) nodesOut.push(node);
 
     for (let i = 0; i < node.children.length; i++) walk(node.children[i], depth + 1);
   }
@@ -130,11 +134,15 @@ export function initWigssScan(options) {
     );
   }
 
+  const previewNodes = [];
+  const previewSaved = new Map();
+
   function sendScan() {
+    previewNodes.length = 0;
     window.parent.postMessage(
       {
         type: 'wigss-scan-result',
-        elements: scanElements(opts),
+        elements: scanElements(opts, previewNodes),
         viewport: { width: window.innerWidth, height: document.documentElement.scrollHeight },
       },
       '*',
@@ -161,6 +169,19 @@ export function initWigssScan(options) {
       for (const k in liveStyleCache) delete liveStyleCache[k];
       const all = document.querySelectorAll('[style]');
       for (let j = 0; j < all.length; j++) all[j].removeAttribute('style');
+    } else if (d.type === 'wigss-preview') {
+      // DOM 전용 낙관적 프리뷰 — 소스에는 절대 쓰지 않는다. 첫 터치 시점의
+      // 인라인 스타일을 저장해 두었다가 clear 때 그대로 복원한다 (레거시
+      // reset 처럼 페이지의 기존 인라인 스타일을 파괴하지 않는다).
+      const el = previewNodes[d.index];
+      if (!el || !el.isConnected || !d.styles) return;
+      if (!previewSaved.has(el)) previewSaved.set(el, el.style.cssText);
+      for (const prop in d.styles) el.style[prop] = d.styles[prop];
+    } else if (d.type === 'wigss-preview-clear') {
+      previewSaved.forEach(function (css, el) {
+        if (el.isConnected) el.style.cssText = css;
+      });
+      previewSaved.clear();
     }
   }
 
