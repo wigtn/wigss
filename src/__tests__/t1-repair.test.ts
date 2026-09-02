@@ -36,6 +36,39 @@ describe('validateClassFragment — 모델 출력 울타리', () => {
   });
 });
 
+describe('T2 지시 모드 (PROD-643)', () => {
+  const base = {
+    file: 'Card.tsx',
+    content: SRC,
+    line: 3,
+    column: 5,
+    targetStyles: {},
+    viewportWidth: 1280,
+  };
+
+  it('targetStyles 없이 instruction 만으로 수선한다 — 프롬프트에 지시가 실린다', async () => {
+    let captured = '';
+    const spy = async (req: { messages: { content: string }[] }): Promise<ClaudeResponse> => {
+      captured = req.messages[0].content;
+      return { text: 'flex h-64 w-64 rounded-2xl p-4', toolUses: [], stopReason: 'end_turn', usage: { input_tokens: 0, output_tokens: 0 } };
+    };
+    const r = await repairWithModel(
+      { ...base, instruction: '더 크게, 모서리 둥글게' },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      spy as any,
+    );
+    expect(r.ok).toBe(true);
+    expect(captured).toContain('사용자 지시(T2)');
+    expect(captured).toContain('더 크게, 모서리 둥글게');
+  });
+
+  it('목표도 지시도 없으면 T1 불가', async () => {
+    const r = await repairWithModel(base, fakeCall('h-64'));
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reason).toContain('T1 불가');
+  });
+});
+
 describe('repairWithModel (PROD-638)', () => {
   const base = {
     file: 'Card.tsx',

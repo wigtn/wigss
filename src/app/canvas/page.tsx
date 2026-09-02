@@ -78,6 +78,29 @@ interface PendingVerify {
   startedAt: number;
 }
 
+/** /api/candidates 가 돌려주는 후보 (P13 · PROD-642) */
+interface WireCandidate {
+  id: string;
+  label: string;
+  explanation: string;
+  diffs: { file: string; original: string; modified: string; explanation: string; range?: { start: number; end: number } }[];
+  expectations: FidelityExpectation[];
+  warning?: string;
+}
+
+type DropChoice =
+  | { kind: 'reorder'; label: string }
+  | { kind: 'diff'; c: WireCandidate };
+
+interface ArbState {
+  compId: string;
+  drag: DragState;
+  choices: DropChoice[];
+  skipped: string[];
+  x: number;
+  y: number;
+}
+
 interface DragState {
   compId: string;
   mode: 'move' | 'resize';
@@ -99,6 +122,10 @@ export default function CanvasPage() {
   const [drag, setDrag] = useState<DragState | null>(null);
   const [toast, setToast] = useState<string>('');
   const [busy, setBusy] = useState(false);
+  const [arb, setArb] = useState<ArbState | null>(null);
+  const [prompting, setPrompting] = useState<{ compId: string; x: number; y: number } | null>(null);
+  const [promptText, setPromptText] = useState('');
+  const [undoId, setUndoId] = useState<string | null>(null);
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const iframesRef = useRef(new Map<string, HTMLIFrameElement>());
@@ -112,6 +139,7 @@ export default function CanvasPage() {
   activeRef.current = activeId;
   const rescanOnLoad = useRef(false);
   const pendingVerify = useRef<PendingVerify | null>(null);
+  const rawScanRef = useRef<RawScanElement[]>([]);
 
   /* 프리뷰 원복: iframe DOM 에만 걸었던 낙관적 스타일을 걷는다 */
   const clearPreview = useCallback(() => {
@@ -157,6 +185,7 @@ export default function CanvasPage() {
       const activeFrame = iframesRef.current.get(activeRef.current);
       if (!activeFrame || e.source !== activeFrame.contentWindow) return;
       const raw: RawScanElement[] = e.data.elements;
+      rawScanRef.current = raw;
       const comps = detectComponents(raw);
       const byId = new Map(raw.map((r, i) => [r.id, { r, i }]));
       setEnriched(
@@ -309,7 +338,7 @@ export default function CanvasPage() {
       if (!rafId) rafId = requestAnimationFrame(sendPreview);
     };
 
-    const onUp = () => {
+    const onUp = (e: PointerEvent) => {
       const d = dragRef.current;
       setDrag(null);
       if (!d) return;
@@ -322,13 +351,8 @@ export default function CanvasPage() {
         clearPreview();
         return;
       }
-      if (d.insertion) {
-        clearPreview(); // 이동 고스트는 걷고, 순서 변경은 코드로 확정한다
-        void commitReorder(d);
-      } else {
-        // 프리뷰는 리로드가 실제 결과로 교체할 때까지 유지 — 스냅백 없는 체감
-        void commitStyle(d);
-      }
+      // P13: 조용한 휴리스틱 대신 후보를 모아 사람이 고른다 (프리뷰는 유지)
+      void resolveDrop(d, { x: e.clientX, y: e.clientY });
     };
 
     window.addEventListener('pointermove', onMove);
@@ -367,11 +391,10 @@ export default function CanvasPage() {
     }
   };
 
-  /* ── 확정: 스타일 (이동→마진 스냅 / 크기) — 활성 카드 폭이 지배 토큰을 정한다.
-   * 에디터와 동일한 검증 루프: apply 후 재스캔 → /api/verify → 불일치면
-   * 자동 롤백 → T1 수선 1회 → 재검증. 최종 불일치도 롤백 — 코드가 맞아도
-   * 화면이 다르면(그리드가 폭을 무시하는 경우 등) 남기지 않는다. ── */
-  const commitStyle = async (d: DragState) => {
+  /* ── P13(PROD-642) 드롭 중재: 후보를 모아 diff 와 함께 제시한다.
+   * 후보가 하나면 그대로 적용(기존 체감 유지), 둘 이상이면 패널에서 고른다.
+   * 적용 후 판정은 언제나 화면(검증 루프)이 한다. ── */
+  const resolveDrop = async (d: DragState, at: { x: number; y: number }) => {
     const me = enrichedRef.current.find((x) => x.comp.id === d.compId);
     if (!me) return;
     const change: ComponentChange = {
@@ -380,32 +403,77 @@ export default function CanvasPage() {
       from: { ...d.startBox },
       to: { ...d.currentBox },
     };
-    const comps = enrichedRef.current.map((x) => x.comp);
-    const priorBoxes = capturePriorBoxes([change], comps);
-    const expectations = buildExpectationsFromChanges([change], comps);
     setBusy(true);
-    setToast('Saving…');
+    setToast('Weighing candidates…');
     try {
-      const ref = await fetch('/api/refactor', {
+      const parentIdx = rawScanRef.current[me.order]?.parentIndex;
+      const parentRaw = parentIdx != null ? rawScanRef.current[parentIdx] : undefined;
+      const parent = parentRaw
+        ? {
+            address: parentRaw.address ?? undefined,
+            boundingBox: parentRaw.boundingBox,
+            display: parentRaw.computedStyle?.display ?? '',
+            position: parentRaw.computedStyle?.position ?? 'static',
+            gap: parentRaw.computedStyle?.gap ?? '',
+            flexDirection: parentRaw.computedStyle?.flexDirection,
+          }
+        : undefined;
+      const res = await fetch('/api/candidates', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          changes: [change],
-          components: comps,
+          change,
+          component: me.comp,
+          parent,
           projectPath: 'auto',
           viewportWidth: CARDS.find((c) => c.id === activeRef.current)!.w,
         }),
       });
-      const refJson = await ref.json();
-      if (!refJson.success || refJson.data.diffs.length === 0) {
+      const json = await res.json();
+      const server: WireCandidate[] = json.success ? json.data.candidates : [];
+      const skipped: string[] = json.success ? json.data.skipped ?? [] : [];
+
+      const choices: DropChoice[] = [];
+      if (d.insertion) {
+        choices.push({ kind: 'reorder', label: `Reorder — slot ${d.insertion.toIndex + 1}` });
+      }
+      for (const c of server) choices.push({ kind: 'diff', c });
+
+      if (choices.length === 0) {
         clearPreview();
-        setToast(`Skipped: ${refJson.data?.skipped?.[0]?.reason ?? 'unknown'}`);
+        setToast(`Skipped: ${skipped[0] ?? json.error?.message ?? 'no candidate'}`);
         return;
       }
+      if (choices.length === 1) {
+        await applyChoice(choices[0], d, change);
+        return;
+      }
+      setArb({ compId: d.compId, drag: d, choices, skipped, x: at.x, y: at.y });
+      setToast('Choose how to read the drop');
+    } catch (err) {
+      clearPreview();
+      setToast(`Candidates failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const applyChoice = async (choice: DropChoice, d: DragState, change: ComponentChange) => {
+    setArb(null);
+    if (choice.kind === 'reorder') {
+      clearPreview();
+      await commitReorder(d);
+      return;
+    }
+    const me = enrichedRef.current.find((x) => x.comp.id === d.compId);
+    const c = choice.c;
+    setBusy(true);
+    setToast('Applying…');
+    try {
       const ap = await fetch('/api/apply', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ diffs: refJson.data.diffs, projectPath: 'auto' }),
+        body: JSON.stringify({ diffs: c.diffs, projectPath: 'auto' }),
       });
       const apJson = await ap.json();
       if (!apJson.success) {
@@ -413,38 +481,105 @@ export default function CanvasPage() {
         setToast('Apply failed');
         return;
       }
-      const explanation = refJson.data.diffs[0].explanation as string;
+      const d0 = c.diffs[0];
       const backupId = apJson.data?.backupId as string | undefined;
-      // 새 렌더 판별용: modified 에만 있는 클래스 토큰 (예: lg:h-[428px])
-      const d0 = refJson.data.diffs[0] as { original: string; modified: string };
       const probeTokens = (d0.modified.match(/[^\s"']+/g) ?? []).filter(
         (t) => !d0.original.includes(t) && t.length > 2,
       );
-      if (expectations.length > 0 && backupId) {
+      if (c.expectations.length > 0 && backupId && me) {
         pendingVerify.current = {
-          expectations,
-          priorBoxes,
+          expectations: c.expectations,
+          priorBoxes: capturePriorBoxes([change], enrichedRef.current.map((x) => x.comp)),
           backupId,
           retriesLeft: 1,
           staleRetries: 4,
           probeTokens,
           address: me.comp.sourceAddress,
-          explanation,
+          explanation: d0.explanation,
           startedAt: performance.now(),
         };
-        setToast(`✓ ${explanation} — verifying…`);
+        setToast(`✓ ${d0.explanation} — verifying…`);
       } else {
-        setToast(`✓ ${explanation}`);
+        // 부모 편집(gap/cols)은 요소 단위 기대치가 없다 — 프리뷰가 이미 보여줬고,
+        // 되돌리기는 백업으로 남는다
+        if (backupId) setUndoId(backupId);
+        setToast(`✓ ${d0.explanation}${c.warning ? ` · ${c.warning}` : ''}`);
       }
     } catch (err) {
       clearPreview();
       setToast(`Save failed: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setBusy(false);
-      // 파일워처(chokidar)가 변경을 무효화하기 전에 리로드하면 낡은 빌드를
-      // 통째로 받는다 (실측: 편집 전 384px 가 그대로 측정됨). 한 박자 늦춘다.
       setTimeout(reloadActive, 350);
     }
+  };
+
+  const dismissArb = useCallback(() => {
+    setArb(null);
+    clearPreview();
+    setToast('Drop dismissed — nothing written');
+  }, [clearPreview]);
+
+  /* ── T2(PROD-643): 오른쪽 클릭 → 범위 지정 프롬프트 → 같은 울타리의 모델 수선 ── */
+  const submitPrompt = async () => {
+    const pr = prompting;
+    const text = promptText.trim();
+    if (!pr || !text) return;
+    const me = enrichedRef.current.find((x) => x.comp.id === pr.compId);
+    setPrompting(null);
+    setPromptText('');
+    if (!me?.comp.sourceAddress) {
+      setToast('T2 unavailable — no source address on this element');
+      return;
+    }
+    setBusy(true);
+    setToast('T2 — asking the model…');
+    try {
+      const rp = await fetch('/api/repair', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          address: me.comp.sourceAddress,
+          instruction: text,
+          viewportWidth: CARDS.find((c) => c.id === activeRef.current)!.w,
+          projectPath: 'auto',
+        }),
+      });
+      const j = await rp.json();
+      if (rp.ok && j.success) {
+        setUndoId(j.data.backupId as string);
+        setToast(`✓ ${j.data.explanation}`);
+        setTimeout(reloadActive, 350);
+      } else {
+        setToast(
+          j.error?.code === 'NO_AUTH'
+            ? 'T2 skipped — no Claude auth on this server'
+            : `T2 refused: ${j.error?.message ?? rp.status}`,
+        );
+      }
+    } catch (err) {
+      setToast(`T2 failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const undoLast = async () => {
+    if (!undoId) return;
+    const id = undoId;
+    setUndoId(null);
+    try {
+      const r = await fetch('/api/rollback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ backupId: id }),
+      });
+      const j = await r.json();
+      setToast(r.ok && j.success ? 'Undone — edits reversed' : `Undo refused: ${j.error?.message ?? r.status}`);
+    } catch (err) {
+      setToast(`Undo failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    setTimeout(reloadActive, 350);
   };
 
   /* ── 재스캔 도착 후 검증 소비 — 실패 시 롤백 → T1 1회 → 재검증 ── */
@@ -561,6 +696,17 @@ export default function CanvasPage() {
     }
   }, [requestScan]);
 
+  useEffect(() => {
+    if (!arb && !prompting) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (arb) dismissArb();
+      setPrompting(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [arb, prompting, dismissArb]);
+
   /* 재스캔(enriched 갱신)이 곧 검증 트리거 — 타이머 없이 이벤트로 */
   useEffect(() => {
     if (enriched.length > 0 && pendingVerify.current) void runCanvasVerify();
@@ -646,6 +792,15 @@ export default function CanvasPage() {
         <span style={{ flex: 1 }} />
         {toast && (
           <span data-testid="toast" style={{ fontSize: 12, color: busy ? '#b4b4b4' : '#3ecf8e' }}>{toast}</span>
+        )}
+        {undoId && (
+          <button
+            data-testid="undo-btn"
+            onClick={() => void undoLast()}
+            style={{ fontSize: 12, color: '#e6a43e', background: 'rgba(230,164,62,.1)', border: '1px solid rgba(230,164,62,.4)', borderRadius: 5, padding: '4px 10px', cursor: 'pointer' }}
+          >
+            Undo last edit
+          </button>
         )}
         <a href="/" style={{ fontSize: 12, color: '#7e7e7e', textDecoration: 'none', border: '1px solid #2e2e2e', borderRadius: 5, padding: '4px 10px' }}>
           Classic editor
@@ -745,6 +900,12 @@ export default function CanvasPage() {
                               data-comp-name={item.comp.name}
                               data-comp-type={item.comp.type}
                               onPointerDown={(e) => beginDrag(e, item.comp.id, 'move')}
+                              onContextMenu={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setSelected(item.comp.id);
+                                setPrompting({ compId: item.comp.id, x: e.clientX, y: e.clientY });
+                              }}
                               style={{ position: 'absolute', left: b.x, top: b.y, width: b.width, height: b.height, outline: `${(isSel ? 2 : 1.2) * inv}px solid ${isSel ? '#3ecf8e' : isDragged ? 'rgba(62,207,142,.7)' : 'rgba(62,207,142,.25)'}`, background: isDragged ? 'rgba(62,207,142,.08)' : 'transparent', cursor: 'grab', borderRadius: 2 }}
                             >
                               {(isSel || isDragged) && (
@@ -777,6 +938,83 @@ export default function CanvasPage() {
             })}
         </div>
       </div>
+
+      {/* ── P13 드롭 중재 패널: 후보를 코드와 함께, 선택 시에만 적용 ── */}
+      {arb && (
+        <div
+          data-testid="arb-panel"
+          style={{ position: 'fixed', left: Math.min(arb.x, (typeof window !== 'undefined' ? window.innerWidth : 1200) - 360), top: Math.min(arb.y, (typeof window !== 'undefined' ? window.innerHeight : 800) - (arb.choices.length * 64 + 120)), width: 340, background: '#181818', border: '1px solid #2e2e2e', borderRadius: 8, boxShadow: '0 16px 50px rgba(0,0,0,.6)', zIndex: 200, overflow: 'hidden' }}
+        >
+          <div style={{ padding: '9px 14px', borderBottom: '1px solid #2e2e2e', fontSize: 11, letterSpacing: '.07em', color: '#7e7e7e', fontWeight: 600 }}>
+            HOW SHOULD THIS DROP READ?
+          </div>
+          {arb.choices.map((ch, i) => {
+            const key = ch.kind === 'reorder' ? 'reorder' : ch.c.id;
+            return (
+              <div
+                key={key}
+                data-testid={`arb-choice-${key}`}
+                onClick={() => {
+                  const d = arb.drag;
+                  const change: ComponentChange = {
+                    componentId: d.compId,
+                    type: d.mode === 'resize' ? 'resize' : 'move',
+                    from: { ...d.startBox },
+                    to: { ...d.currentBox },
+                  };
+                  void applyChoice(ch, d, change);
+                }}
+                style={{ padding: '10px 14px', borderBottom: i < arb.choices.length - 1 ? '1px solid #232323' : 'none', cursor: 'pointer', background: 'transparent' }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'rgba(62,207,142,.07)'; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'transparent'; }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#ededed' }}>
+                  <span>{ch.kind === 'reorder' ? ch.label : ch.c.label}</span>
+                  {ch.kind === 'diff' && ch.c.warning && (
+                    <span style={{ fontSize: 9.5, fontFamily: 'monospace', border: '1px solid rgba(230,164,62,.4)', background: 'rgba(230,164,62,.1)', color: '#e6a43e', borderRadius: 4, padding: '1px 5px' }}>warn</span>
+                  )}
+                </div>
+                <div style={{ marginTop: 3, fontFamily: 'monospace', fontSize: 11, color: '#3ecf8e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {ch.kind === 'reorder' ? '/api/restructure — sibling reorder' : ch.c.explanation}
+                </div>
+                {ch.kind === 'diff' && ch.c.warning && (
+                  <div style={{ marginTop: 2, fontSize: 11, color: '#8a8a8a' }}>{ch.c.warning}</div>
+                )}
+              </div>
+            );
+          })}
+          <div style={{ padding: '7px 14px', borderTop: '1px solid #2e2e2e', display: 'flex', alignItems: 'center', fontSize: 11, color: '#7e7e7e' }}>
+            <span>Esc — dismiss, nothing written</span>
+            <span style={{ flex: 1 }} />
+            <span onClick={dismissArb} style={{ cursor: 'pointer', color: '#b4b4b4' }}>Cancel</span>
+          </div>
+        </div>
+      )}
+
+      {/* ── T2 프롬프트 팝오버: 이 요소 범위로 좁힌 모델 편집 ── */}
+      {prompting && (
+        <div style={{ position: 'fixed', left: Math.min(prompting.x, (typeof window !== 'undefined' ? window.innerWidth : 1200) - 380), top: Math.min(prompting.y, (typeof window !== 'undefined' ? window.innerHeight : 800) - 110), width: 360, background: '#181818', border: '1px solid #2e2e2e', borderRadius: 8, boxShadow: '0 16px 50px rgba(0,0,0,.6)', zIndex: 200, padding: 12 }}>
+          <div style={{ fontSize: 11, letterSpacing: '.07em', color: '#7e7e7e', fontWeight: 600, marginBottom: 8 }}>
+            PROMPT THIS ELEMENT (T2 · scoped to its className)
+          </div>
+          <input
+            data-testid="prompt-input"
+            autoFocus
+            value={promptText}
+            onChange={(e) => setPromptText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void submitPrompt();
+            }}
+            placeholder="e.g. make this a bit taller and round the corners"
+            style={{ width: '100%', background: '#101010', border: '1px solid #2e2e2e', borderRadius: 6, padding: '8px 10px', color: '#ededed', fontSize: 13, outline: 'none' }}
+          />
+          <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', fontSize: 11, color: '#7e7e7e' }}>
+            <span>Model edits one class fragment — verified on screen, undoable</span>
+            <span style={{ flex: 1 }} />
+            <span onClick={() => void submitPrompt()} style={{ cursor: 'pointer', color: '#3ecf8e', fontWeight: 600 }}>Run</span>
+          </div>
+        </div>
+      )}
 
       {/* ── 하단 바 ── */}
       <div style={{ position: 'fixed', insetInline: 0, bottom: 0, height: 28, background: '#181818', borderTop: '1px solid #2e2e2e', display: 'flex', alignItems: 'center', gap: 16, padding: '0 14px', zIndex: 100, fontFamily: 'monospace', fontSize: 11, color: '#7e7e7e' }}>

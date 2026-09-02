@@ -27,6 +27,8 @@ export interface RawScanElement {
   depth: number;
   childCount?: number;
   parentId?: string;
+  /** 가장 가까운 기록된 조상의 스캔 인덱스 (id 없는 부모도 연결된다) */
+  parentIndex?: number | null;
   computedStyle?: {
     // Layout (used by detectComponents to infer containers)
     display: string;

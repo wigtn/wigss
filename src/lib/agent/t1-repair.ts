@@ -36,6 +36,8 @@ export interface RepairInput {
   line: number;
   column: number;
   targetStyles: Record<string, string>;
+  /** T2(PROD-643): 사용자의 자연어 지시 — 있으면 targetStyles 보다 우선한다 */
+  instruction?: string;
   viewportWidth?: number;
   /** T0 가 포기한 사유 (있다면 모델에게 알려준다) */
   reason?: string;
@@ -96,9 +98,13 @@ export async function repairWithModel(
   const context = lines.slice(from, to).join('\n');
 
   const bp = bpFromWidth(input.viewportWidth);
-  const wants = Object.entries(input.targetStyles)
+  const styleWants = Object.entries(input.targetStyles)
     .map(([k, v]) => `${k}: ${v}`)
     .join(', ');
+  const wants = input.instruction
+    ? `사용자 지시(T2): ${input.instruction}` + (styleWants ? ` (참고 측정값: ${styleWants})` : '')
+    : styleWants;
+  if (!wants) return { ok: false, reason: 'T1 불가 — 목표 스타일도 지시도 없음' };
 
   const userMessage = [
     `파일: ${input.file} (<${resolved.elementName}>)`,

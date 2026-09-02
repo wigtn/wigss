@@ -30,10 +30,15 @@ export async function POST(req: NextRequest) {
       projectPath?: unknown;
       reason?: unknown;
       mismatches?: unknown;
+      instruction?: unknown;
     };
-    if (typeof body.address !== 'string' || typeof body.targetStyles !== 'object' || !body.targetStyles) {
+    const instruction = typeof body.instruction === 'string' && body.instruction.trim()
+      ? body.instruction.trim().slice(0, 500)
+      : undefined;
+    const hasStyles = typeof body.targetStyles === 'object' && body.targetStyles !== null;
+    if (typeof body.address !== 'string' || (!hasStyles && !instruction)) {
       return NextResponse.json(
-        { success: false, error: { code: 'INVALID_INPUT', message: 'address and targetStyles required' } },
+        { success: false, error: { code: 'INVALID_INPUT', message: 'address and (targetStyles or instruction) required' } },
         { status: 400 },
       );
     }
@@ -74,7 +79,8 @@ export async function POST(req: NextRequest) {
       content,
       line: parsed.line,
       column: parsed.column,
-      targetStyles: body.targetStyles as Record<string, string>,
+      targetStyles: hasStyles ? (body.targetStyles as Record<string, string>) : {},
+      instruction,
       viewportWidth,
       reason: typeof body.reason === 'string' ? body.reason : undefined,
       mismatches: Array.isArray(body.mismatches) ? (body.mismatches as RepairMismatch[]) : undefined,

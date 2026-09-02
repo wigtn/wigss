@@ -205,3 +205,15 @@ Babel/SWC 플러그인 불필요, 프로덕션 빌드는 `jsxDEV`를 쓰지 않�
      조용한 덮어쓰기보다 거절 (의도된 보수성)
   8. 캔버스 삽입 판정은 가로 행 형제만 — 세로 스택 reorder 는 스타일 이동으로
      떨어진다 (후속 과제)
+
+추가 기록 (P12~P14, 2026-09-02 사용 테스트 후속):
+- P12(PROD-641): 캔버스 검증 패리티 + 낙관적 DOM 프리뷰 + 렌더 경합 가드,
+  백업 스토어 globalThis 고정 (Next dev 라우트별 번들이 apply/rollback 에
+  다른 인스턴스를 주던 버그 — 캔버스 E2E 적발)
+- P13(PROD-642): 드롭 중재 패널 — own(마진/크기)·parent-gap·parent-cols·
+  absolute(경고) 후보를 diff 와 함께 제시, 선택 시에만 적용. Esc 는 무기록
+- P14(PROD-643): 부모 편집(그리드 자식 폭 → 부모 grid-cols 열 수, 지배 bp
+  존중: lg:grid-cols-3 → lg:grid-cols-1 실측) + T2 우클릭 프롬프트(/api/repair
+  instruction, 같은 한 줄 클래스 울타리, NO_AUTH 정중 생략, Undo 역치환)
+- 잔여: 후보의 모델 랭킹(지금은 결정론 나열), absolute 후보의 부모 relative
+  자동 부여는 미지원(주소 2개 원자 적용 필요), RSC/프로덕션 주소는 여전히 제외

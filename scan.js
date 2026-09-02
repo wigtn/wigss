@@ -34,14 +34,14 @@ function scanElements(opts, nodesOut) {
   const results = [];
   let count = 0;
 
-  function walk(node, depth) {
+  function walk(node, depth, parentIdx) {
     if (count >= opts.maxElements || depth > opts.maxDepth) return;
     if (!(node instanceof HTMLElement)) return;
     const tag = node.tagName.toUpperCase();
     if (SKIP_TAGS.indexOf(tag) >= 0) return;
 
     if (INLINE_TAGS.indexOf(tag) >= 0 && !node.getAttribute('data-component')) {
-      for (let ci = 0; ci < node.children.length; ci++) walk(node.children[ci], depth + 1);
+      for (let ci = 0; ci < node.children.length; ci++) walk(node.children[ci], depth + 1, parentIdx);
       return;
     }
 
@@ -105,16 +105,19 @@ function scanElements(opts, nodesOut) {
       },
       childCount: node.children.length,
       parentId,
+      // 가장 가까운 "기록된" 조상의 results 인덱스 — id 유무와 무관한 부모 연결
+      parentIndex: parentIdx,
     });
     // 프리뷰 조준용: results 와 같은 순서로 실제 노드를 기록한다
     if (nodesOut) nodesOut.push(node);
 
-    for (let i = 0; i < node.children.length; i++) walk(node.children[i], depth + 1);
+    const myIdx = results.length - 1;
+    for (let i = 0; i < node.children.length; i++) walk(node.children[i], depth + 1, myIdx);
   }
 
   const body = document.body;
   if (body) {
-    for (let i = 0; i < body.children.length; i++) walk(body.children[i], 0);
+    for (let i = 0; i < body.children.length; i++) walk(body.children[i], 0, null);
   }
   return results;
 }
