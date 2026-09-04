@@ -1,0 +1,634 @@
+{
+  "generatedAt": "2026-09-01T19:00:40.040Z",
+  "reps": 20,
+  "scenarios": [
+    {
+      "id": "S1",
+      "file": "S1_unique.tsx",
+      "label": "고유 className · 정적",
+      "pattern": "기본형",
+      "address": {
+        "line": 3,
+        "column": 4
+      },
+      "runtimeClassName": "flex flex-col h-48 w-64 rounded-lg bg-gray-800 p-4",
+      "gesture": {
+        "type": "resize",
+        "from": {
+          "width": 256,
+          "height": 192
+        },
+        "to": {
+          "width": 256,
+          "height": 256
+        }
+      },
+      "breakpoint": "base",
+      "expect": {
+        "className": "flex flex-col h-64 w-64 rounded-lg bg-gray-800 p-4",
+        "reason": "h-48(192px) → h-64(256px)"
+      }
+    },
+    {
+      "id": "S2",
+      "file": "S2_duplicate.tsx",
+      "label": "동일 className 2개",
+      "pattern": "중복",
+      "address": {
+        "line": 7,
+        "column": 6
+      },
+      "runtimeClassName": "flex flex-col h-48 w-64 rounded-lg bg-gray-800 p-5",
+      "gesture": {
+        "type": "resize",
+        "from": {
+          "width": 256,
+          "height": 192
+        },
+        "to": {
+          "width": 256,
+          "height": 256
+        }
+      },
+      "breakpoint": "base",
+      "expect": {
+        "className": "flex flex-col h-64 w-64 rounded-lg bg-gray-800 p-5",
+        "reason": "두 번째 카드만 바뀌어야 한다"
+      }
+    },
+    {
+      "id": "S3",
+      "file": "S3_template.tsx",
+      "label": "템플릿 리터럴 + 보간",
+      "pattern": "동적 className",
+      "address": {
+        "line": 3,
+        "column": 4
+      },
+      "runtimeClassName": "flex flex-col h-48 w-64 rounded-lg p-4 primary",
+      "gesture": {
+        "type": "resize",
+        "from": {
+          "width": 256,
+          "height": 192
+        },
+        "to": {
+          "width": 256,
+          "height": 256
+        }
+      },
+      "breakpoint": "base",
+      "expect": {
+        "className": "flex flex-col h-64 w-64 rounded-lg p-4",
+        "reason": "정적 부분의 h-48만 교체. 보간은 보존"
+      }
+    },
+    {
+      "id": "S4",
+      "file": "S4_clsx.tsx",
+      "label": "cn() 호출",
+      "pattern": "동적 className",
+      "address": {
+        "line": 5,
+        "column": 4
+      },
+      "runtimeClassName": "flex flex-col h-48 w-64 rounded-lg p-8 ring-2 ring-blue-500",
+      "gesture": {
+        "type": "resize",
+        "from": {
+          "width": 256,
+          "height": 192
+        },
+        "to": {
+          "width": 256,
+          "height": 256
+        }
+      },
+      "breakpoint": "base",
+      "expect": {
+        "className": "flex flex-col h-64 w-64 rounded-lg p-8",
+        "reason": "cn() 첫 인자 문자열 안의 h-48만 교체. 조건부 인자는 보존"
+      }
+    },
+    {
+      "id": "S5",
+      "file": "S5_multiline.tsx",
+      "label": "여러 줄 속성",
+      "pattern": "포맷",
+      "address": {
+        "line": 3,
+        "column": 4
+      },
+      "runtimeClassName": "flex flex-col h-48 w-64 rounded-lg bg-gray-800 p-4 shadow-md transition-colors hover:bg-gray-700",
+      "gesture": {
+        "type": "resize",
+        "from": {
+          "width": 256,
+          "height": 192
+        },
+        "to": {
+          "width": 256,
+          "height": 256
+        }
+      },
+      "breakpoint": "base",
+      "expect": {
+        "className": "flex flex-col h-64 w-64 rounded-lg bg-gray-800 p-4 shadow-md transition-colors hover:bg-gray-700",
+        "reason": "줄바꿈 포맷을 보존하며 h-48만 교체"
+      }
+    },
+    {
+      "id": "S6",
+      "file": "S6_responsive.tsx",
+      "label": "반응형 h-32 md:h-48 lg:h-64",
+      "pattern": "브레이크포인트",
+      "address": {
+        "line": 3,
+        "column": 4
+      },
+      "runtimeClassName": "flex flex-col h-32 md:h-48 lg:h-64 w-full rounded-lg bg-gray-800 p-4",
+      "gesture": {
+        "type": "resize",
+        "from": {
+          "width": 1024,
+          "height": 256
+        },
+        "to": {
+          "width": 1024,
+          "height": 320
+        }
+      },
+      "breakpoint": "lg",
+      "expect": {
+        "className": "flex flex-col h-32 md:h-48 lg:h-80 w-full rounded-lg bg-gray-800 p-4",
+        "reason": "lg 활성 → lg:h-64만 lg:h-80으로. base/md는 불변"
+      }
+    },
+    {
+      "id": "S7",
+      "file": "S7_map.tsx",
+      "label": ".map() 안의 항목",
+      "pattern": "반복 렌더",
+      "address": {
+        "line": 7,
+        "column": 8
+      },
+      "runtimeClassName": "flex flex-col h-48 w-64 rounded-lg bg-gray-800 p-6",
+      "gesture": {
+        "type": "resize",
+        "from": {
+          "width": 256,
+          "height": 192
+        },
+        "to": {
+          "width": 256,
+          "height": 256
+        }
+      },
+      "breakpoint": "base",
+      "expect": {
+        "className": "flex flex-col h-64 w-64 rounded-lg bg-gray-800 p-6",
+        "reason": "크기 변경은 전체 항목에 적용되는 게 맞다 (순서 변경과 달리 배열 무관)"
+      }
+    },
+    {
+      "id": "S8",
+      "file": "S8_move.tsx",
+      "label": "flex 자식 이동 (12px)",
+      "pattern": "위치 이동",
+      "address": {
+        "line": 5,
+        "column": 6
+      },
+      "runtimeClassName": "block rounded px-3 py-2 text-gray-300",
+      "gesture": {
+        "type": "move",
+        "from": {
+          "x": 16,
+          "y": 60
+        },
+        "to": {
+          "x": 16,
+          "y": 72
+        }
+      },
+      "breakpoint": "base",
+      "expect": {
+        "className": "block rounded px-3 py-2 text-gray-300 mt-3",
+        "reason": "12px → mt-3 (스케일 정확히 일치). 임의값 금지"
+      }
+    },
+    {
+      "id": "S9",
+      "file": "S9_singlequote.tsx",
+      "label": "단일 따옴표 className",
+      "pattern": "포맷",
+      "address": {
+        "line": 3,
+        "column": 4
+      },
+      "runtimeClassName": "flex flex-col h-48 w-64 rounded-lg bg-gray-800 p-3",
+      "gesture": {
+        "type": "resize",
+        "from": {
+          "width": 256,
+          "height": 192
+        },
+        "to": {
+          "width": 256,
+          "height": 256
+        }
+      },
+      "breakpoint": "base",
+      "expect": {
+        "className": "flex flex-col h-64 w-64 rounded-lg bg-gray-800 p-3",
+        "reason": "따옴표 스타일을 보존하며 교체"
+      }
+    },
+    {
+      "id": "S10",
+      "file": "S10_prop.tsx",
+      "label": "prop className 형제 옆의 정적 요소",
+      "pattern": "혼합",
+      "address": {
+        "line": 4,
+        "column": 6
+      },
+      "runtimeClassName": "flex flex-col h-48 w-64 rounded-lg bg-gray-800 p-2",
+      "gesture": {
+        "type": "resize",
+        "from": {
+          "width": 256,
+          "height": 192
+        },
+        "to": {
+          "width": 256,
+          "height": 256
+        }
+      },
+      "breakpoint": "base",
+      "expect": {
+        "className": "flex flex-col h-64 w-64 rounded-lg bg-gray-800 p-2",
+        "reason": "같은 파일에 표현식 className이 있어도 정적 요소는 정확히 찾아야 함"
+      }
+    }
+  ],
+  "aRows": [
+    {
+      "version": "A",
+      "scenario": "S1",
+      "filesRead": 11,
+      "filesParsed": 10,
+      "elapsedMs": 0.10824149999999833,
+      "resolved": true,
+      "produced": true,
+      "applied": true,
+      "finalClassName": "flex flex-col h-64 w-64 rounded-lg bg-gray-800 p-4",
+      "correct": true,
+      "abandoned": false,
+      "pollution": 0,
+      "pollutionDetail": [],
+      "note": "tailwind · 높이: h-48 → h-64"
+    },
+    {
+      "version": "A",
+      "scenario": "S2",
+      "filesRead": 11,
+      "filesParsed": 10,
+      "elapsedMs": 0.10499380000000258,
+      "resolved": true,
+      "produced": true,
+      "applied": true,
+      "finalClassName": "flex flex-col h-48 w-64 rounded-lg bg-gray-800 p-5",
+      "correct": false,
+      "abandoned": false,
+      "pollution": 0,
+      "pollutionDetail": [],
+      "note": "tailwind · 높이: h-48 → h-64"
+    },
+    {
+      "version": "A",
+      "scenario": "S3",
+      "filesRead": 11,
+      "filesParsed": 10,
+      "elapsedMs": 0.2899188500000022,
+      "resolved": false,
+      "produced": false,
+      "applied": false,
+      "finalClassName": "",
+      "correct": false,
+      "abandoned": true,
+      "abandonReason": "diff 생성 실패 (사유 미보고)",
+      "pollution": 0,
+      "pollutionDetail": [],
+      "note": "현행은 실패 사유를 사용자에게 알리지 않고 조용히 넘어간다"
+    },
+    {
+      "version": "A",
+      "scenario": "S4",
+      "filesRead": 11,
+      "filesParsed": 10,
+      "elapsedMs": 0.22731464999999956,
+      "resolved": false,
+      "produced": false,
+      "applied": false,
+      "finalClassName": "",
+      "correct": false,
+      "abandoned": true,
+      "abandonReason": "diff 생성 실패 (사유 미보고)",
+      "pollution": 0,
+      "pollutionDetail": [],
+      "note": "현행은 실패 사유를 사용자에게 알리지 않고 조용히 넘어간다"
+    },
+    {
+      "version": "A",
+      "scenario": "S5",
+      "filesRead": 11,
+      "filesParsed": 10,
+      "elapsedMs": 0.1316417499999986,
+      "resolved": true,
+      "produced": true,
+      "applied": true,
+      "finalClassName": "flex flex-col h-64 w-64 rounded-lg bg-gray-800 p-4 shadow-md transition-colors hover:bg-gray-700",
+      "correct": true,
+      "abandoned": false,
+      "pollution": 0,
+      "pollutionDetail": [],
+      "note": "tailwind · 높이: h-48 → h-64"
+    },
+    {
+      "version": "A",
+      "scenario": "S6",
+      "filesRead": 11,
+      "filesParsed": 10,
+      "elapsedMs": 0.14017714999999242,
+      "resolved": true,
+      "produced": true,
+      "applied": true,
+      "finalClassName": "flex flex-col h-80 md:h-48 lg:h-64 w-full rounded-lg bg-gray-800 p-4",
+      "correct": false,
+      "abandoned": false,
+      "pollution": 0,
+      "pollutionDetail": [],
+      "note": "tailwind · 높이: h-32 → h-80"
+    },
+    {
+      "version": "A",
+      "scenario": "S7",
+      "filesRead": 11,
+      "filesParsed": 10,
+      "elapsedMs": 0.18773974999999724,
+      "resolved": true,
+      "produced": true,
+      "applied": true,
+      "finalClassName": "flex flex-col h-64 w-64 rounded-lg bg-gray-800 p-6",
+      "correct": true,
+      "abandoned": false,
+      "pollution": 0,
+      "pollutionDetail": [],
+      "note": "tailwind · 높이: h-48 → h-64"
+    },
+    {
+      "version": "A",
+      "scenario": "S8",
+      "filesRead": 11,
+      "filesParsed": 10,
+      "elapsedMs": 0.18087279999999878,
+      "resolved": true,
+      "produced": true,
+      "applied": true,
+      "finalClassName": "block rounded px-3 py-2 text-gray-300",
+      "correct": false,
+      "abandoned": false,
+      "pollution": 1,
+      "pollutionDetail": [
+        "임의값: mt-[12px]"
+      ],
+      "note": "tailwind · 마진 추가: mt-[12px]"
+    },
+    {
+      "version": "A",
+      "scenario": "S9",
+      "filesRead": 11,
+      "filesParsed": 10,
+      "elapsedMs": 0.19250620000000113,
+      "resolved": true,
+      "produced": true,
+      "applied": true,
+      "finalClassName": "flex flex-col h-64 w-64 rounded-lg bg-gray-800 p-3",
+      "correct": true,
+      "abandoned": false,
+      "pollution": 0,
+      "pollutionDetail": [],
+      "note": "tailwind · 높이: h-48 → h-64"
+    },
+    {
+      "version": "A",
+      "scenario": "S10",
+      "filesRead": 11,
+      "filesParsed": 10,
+      "elapsedMs": 0.03327075000000264,
+      "resolved": true,
+      "produced": true,
+      "applied": true,
+      "finalClassName": "flex flex-col h-64 w-64 rounded-lg bg-gray-800 p-2",
+      "correct": true,
+      "abandoned": false,
+      "pollution": 0,
+      "pollutionDetail": [],
+      "note": "tailwind · 높이: h-48 → h-64"
+    }
+  ],
+  "bRows": [
+    {
+      "version": "B",
+      "scenario": "S1",
+      "filesRead": 1,
+      "filesParsed": 1,
+      "elapsedMs": 0.03855830000000253,
+      "resolved": true,
+      "produced": true,
+      "applied": true,
+      "finalClassName": "flex flex-col h-64 w-64 rounded-lg bg-gray-800 p-4",
+      "correct": true,
+      "abandoned": false,
+      "pollution": 0,
+      "pollutionDetail": [],
+      "note": "string · h-48 → h-64"
+    },
+    {
+      "version": "B",
+      "scenario": "S2",
+      "filesRead": 1,
+      "filesParsed": 1,
+      "elapsedMs": 0.033829100000004074,
+      "resolved": true,
+      "produced": true,
+      "applied": true,
+      "finalClassName": "flex flex-col h-64 w-64 rounded-lg bg-gray-800 p-5",
+      "correct": true,
+      "abandoned": false,
+      "pollution": 0,
+      "pollutionDetail": [],
+      "note": "string · h-48 → h-64"
+    },
+    {
+      "version": "B",
+      "scenario": "S3",
+      "filesRead": 1,
+      "filesParsed": 1,
+      "elapsedMs": 0.040648149999999814,
+      "resolved": true,
+      "produced": true,
+      "applied": true,
+      "finalClassName": "flex flex-col h-64 w-64 rounded-lg p-4",
+      "correct": true,
+      "abandoned": false,
+      "pollution": 0,
+      "pollutionDetail": [],
+      "note": "template · h-48 → h-64"
+    },
+    {
+      "version": "B",
+      "scenario": "S4",
+      "filesRead": 1,
+      "filesParsed": 1,
+      "elapsedMs": 0.04210629999999469,
+      "resolved": true,
+      "produced": true,
+      "applied": true,
+      "finalClassName": "flex flex-col h-64 w-64 rounded-lg p-8",
+      "correct": true,
+      "abandoned": false,
+      "pollution": 0,
+      "pollutionDetail": [],
+      "note": "call · h-48 → h-64"
+    },
+    {
+      "version": "B",
+      "scenario": "S5",
+      "filesRead": 1,
+      "filesParsed": 1,
+      "elapsedMs": 0.026216650000002062,
+      "resolved": true,
+      "produced": true,
+      "applied": true,
+      "finalClassName": "flex flex-col h-64 w-64 rounded-lg bg-gray-800 p-4 shadow-md transition-colors hover:bg-gray-700",
+      "correct": true,
+      "abandoned": false,
+      "pollution": 0,
+      "pollutionDetail": [],
+      "note": "string · h-48 → h-64"
+    },
+    {
+      "version": "B",
+      "scenario": "S6",
+      "filesRead": 1,
+      "filesParsed": 1,
+      "elapsedMs": 0.025452050000001235,
+      "resolved": true,
+      "produced": true,
+      "applied": true,
+      "finalClassName": "flex flex-col h-32 md:h-48 lg:h-80 w-full rounded-lg bg-gray-800 p-4",
+      "correct": true,
+      "abandoned": false,
+      "pollution": 0,
+      "pollutionDetail": [],
+      "note": "string · lg:h-64 → lg:h-80"
+    },
+    {
+      "version": "B",
+      "scenario": "S7",
+      "filesRead": 1,
+      "filesParsed": 1,
+      "elapsedMs": 0.03911245000000178,
+      "resolved": true,
+      "produced": true,
+      "applied": true,
+      "finalClassName": "flex flex-col h-64 w-64 rounded-lg bg-gray-800 p-6",
+      "correct": true,
+      "abandoned": false,
+      "pollution": 0,
+      "pollutionDetail": [],
+      "note": "string · h-48 → h-64"
+    },
+    {
+      "version": "B",
+      "scenario": "S8",
+      "filesRead": 1,
+      "filesParsed": 1,
+      "elapsedMs": 0.02592510000000061,
+      "resolved": true,
+      "produced": true,
+      "applied": true,
+      "finalClassName": "block rounded px-3 py-2 text-gray-300 mt-3",
+      "correct": true,
+      "abandoned": false,
+      "pollution": 0,
+      "pollutionDetail": [],
+      "note": "string · + mt-3"
+    },
+    {
+      "version": "B",
+      "scenario": "S9",
+      "filesRead": 1,
+      "filesParsed": 1,
+      "elapsedMs": 0.031397799999999164,
+      "resolved": true,
+      "produced": true,
+      "applied": true,
+      "finalClassName": "flex flex-col h-64 w-64 rounded-lg bg-gray-800 p-3",
+      "correct": true,
+      "abandoned": false,
+      "pollution": 0,
+      "pollutionDetail": [],
+      "note": "string · h-48 → h-64"
+    },
+    {
+      "version": "B",
+      "scenario": "S10",
+      "filesRead": 1,
+      "filesParsed": 1,
+      "elapsedMs": 0.02686869999999857,
+      "resolved": true,
+      "produced": true,
+      "applied": true,
+      "finalClassName": "flex flex-col h-64 w-64 rounded-lg bg-gray-800 p-2",
+      "correct": true,
+      "abandoned": false,
+      "pollution": 0,
+      "pollutionDetail": [],
+      "note": "string · h-48 → h-64"
+    }
+  ],
+  "sumA": {
+    "n": 10,
+    "correct": 5,
+    "correctPct": 50,
+    "resolved": 8,
+    "resolvedPct": 80,
+    "wrongWrite": 3,
+    "silentFail": 2,
+    "reported": 2,
+    "pollution": 1,
+    "polluted": 1,
+    "avgMs": 0.15966771999999937,
+    "avgFilesRead": 11,
+    "avgFilesParsed": 10
+  },
+  "sumB": {
+    "n": 10,
+    "correct": 10,
+    "correctPct": 100,
+    "resolved": 10,
+    "resolvedPct": 100,
+    "wrongWrite": 0,
+    "silentFail": 0,
+    "reported": 0,
+    "pollution": 0,
+    "polluted": 0,
+    "avgMs": 0.03301146000000045,
+    "avgFilesRead": 1,
+    "avgFilesParsed": 1
+  }
+}
