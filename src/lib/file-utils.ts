@@ -53,6 +53,29 @@ export async function listSourceFiles(projectPath: string): Promise<string[]> {
 }
 
 /**
+ * 주소가 없을 때의 소스 수집 (D6 저하 경로). /api/refactor 와 /api/candidates 가
+ * 같은 규칙을 써야 한다 — 후보 API 만 주소 파일로 좁혔더니 주소 없는 컴포넌트의
+ * own 후보가 통째로 사라졌다. `explicit` (주소 파일, sourceFile) 을 앞에 두고
+ * 프로젝트를 걸어 40개까지 보탠다. 총 50개 상한.
+ */
+export async function collectFallbackSourceFiles(
+  projectPath: string,
+  explicit: string[],
+): Promise<string[]> {
+  const discovered = await listSourceFiles(projectPath);
+  const fallback = discovered
+    .filter((file) =>
+      file.startsWith('src/') ||
+      file.startsWith('app/') ||
+      file.endsWith('.tsx') ||
+      file.endsWith('.ts') ||
+      file.endsWith('.css'),
+    )
+    .slice(0, 40);
+  return Array.from(new Set([...explicit, ...fallback])).slice(0, 50);
+}
+
+/**
  * Read source file contents as UTF-8 string.
  */
 export async function readSourceFile(filePath: string): Promise<string> {

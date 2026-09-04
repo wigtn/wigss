@@ -3,8 +3,8 @@ import path from 'path';
 import fs from 'fs/promises';
 import type { ComponentChange, DetectedComponent } from '@/types';
 import {
+  collectFallbackSourceFiles,
   isPathSafe,
-  listSourceFiles,
   readSourceFile,
 } from '@/lib/file-utils';
 import { generateRefactorResult } from '@/lib/agent/refactor-client';
@@ -19,10 +19,6 @@ type RefactorRequest = {
   /** P3(PROD-633): 편집 시점 에디터 뷰포트 폭 — 지배 토큰 선택 기준 */
   viewportWidth?: number;
 };
-
-function unique<T>(items: T[]): T[] {
-  return Array.from(new Set(items));
-}
 
 /** Tailwind 프로젝트 판정 — 설정 파일 또는 의존성 (P3 · D4 정책 스위치) */
 async function isTailwindProject(projectPath: string): Promise<boolean> {
@@ -117,18 +113,10 @@ export async function POST(req: NextRequest) {
         .map((component) => component.sourceFile)
         .filter((file): file is string => typeof file === 'string' && file.length > 0);
 
-      const discoveredFiles = await listSourceFiles(projectPath);
-      const fallbackFiles = discoveredFiles
-        .filter((file) =>
-          file.startsWith('src/') ||
-          file.startsWith('app/') ||
-          file.endsWith('.tsx') ||
-          file.endsWith('.ts') ||
-          file.endsWith('.css'),
-        )
-        .slice(0, 40);
-
-      targetFiles = unique([...addressedFiles, ...explicitSourceFiles, ...fallbackFiles]).slice(0, 50);
+      targetFiles = await collectFallbackSourceFiles(projectPath, [
+        ...addressedFiles,
+        ...explicitSourceFiles,
+      ]);
     }
 
     const sources: { path: string; content: string }[] = [];

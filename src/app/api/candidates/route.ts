@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import path from 'path';
 import fs from 'fs/promises';
 import type { ComponentChange, DetectedComponent } from '@/types';
-import { isPathSafe, readSourceFile } from '@/lib/file-utils';
+import { collectFallbackSourceFiles, isPathSafe, readSourceFile } from '@/lib/file-utils';
 import { parseAddress } from '@/lib/agent/address-resolver';
 import { buildCandidates, type ParentContext } from '@/lib/agent/candidates';
 
@@ -65,8 +65,22 @@ export async function POST(req: NextRequest) {
       const parsed = addr ? parseAddress(addr) : null;
       if (parsed) files.add(parsed.file);
     }
+
+    /* 주소가 있으면 그 파일만 읽는다. 없으면 /api/refactor 와 같은 D6 저하 수집 —
+     * sourceFile 을 앞에 두고 프로젝트를 걸어 보탠다. 주소는 선택 필드라서, 주소
+     * 없는 컴포넌트에서 sources 가 비면 own 후보가 "소스를 찾지 못함" 으로 스킵되고
+     * 드래그 후보 기능이 기존 프로젝트에서 통째로 퇴행한다. */
+    let targetFiles: string[] = [...files];
+    if (!component.sourceAddress) {
+      const explicit =
+        typeof component.sourceFile === 'string' && component.sourceFile.length > 0
+          ? [component.sourceFile]
+          : [];
+      targetFiles = await collectFallbackSourceFiles(projectPath, [...files, ...explicit]);
+    }
+
     const sources: { path: string; content: string }[] = [];
-    for (const rel of files) {
+    for (const rel of targetFiles) {
       const abs = path.resolve(projectPath, rel);
       if (!isPathSafe(abs, projectPath)) continue;
       try {
