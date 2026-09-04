@@ -18,6 +18,13 @@
   },
   "type": "module",
   "main": "./bin/cli.js",
+  "exports": {
+    ".": "./bin/cli.js",
+    "./jsx-dev-runtime": "./jsx-dev-runtime.js",
+    "./jsx-runtime": "./jsx-runtime.js",
+    "./scan": "./scan.js",
+    "./package.json": "./package.json"
+  },
   "bin": {
     "wigss": "./bin/cli.js"
   },

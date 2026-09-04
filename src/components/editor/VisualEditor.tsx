@@ -272,6 +272,19 @@ export default function VisualEditor() {
               className="border-0 bg-white"
               style={{ width: fixedWidth, height: canvasHeight > 0 ? canvasHeight : '100%', pointerEvents: 'none' }}
               title="Target page preview"
+              onLoad={() => {
+                // P5(PROD-635): 저장 후 리로드가 실제로 끝난 시점에 재스캔한다.
+                // 고정 3초 대기는 느린 프로젝트에서 검증을 '재발견 실패'로 빠뜨렸다.
+                const agent = useAgentStore.getState();
+                if (agent.awaitingRescan) {
+                  agent.setAwaitingRescan(false);
+                  const editor = useEditorStore.getState();
+                  agent.sendMessage('scan', {
+                    url: editor.targetUrl,
+                    projectPath: editor.projectPath || 'auto',
+                  });
+                }
+              }}
             />
 
             {/* Center spinner for agent status */}

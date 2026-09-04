@@ -59,6 +59,10 @@ function toChange(s: Scenario): ComponentChange {
  * component-detector.inferSourceFile 은 data-component 가 없으면 '' 를 돌려주므로
  * 일반 프로젝트에서 sourceFile 은 비어 있고, 조인은 fullClassName 문자열에만 의존한다.
  */
+const BP_WIDTH: Record<Scenario['breakpoint'], number> = {
+  base: 375, sm: 640, md: 768, lg: 1024, xl: 1280,
+};
+
 function toComponent(s: Scenario): DetectedComponent {
   const box =
     s.gesture.type === 'resize'
@@ -71,6 +75,8 @@ function toComponent(s: Scenario): DetectedComponent {
     elementIds: [s.id],
     boundingBox: box,
     sourceFile: '', // ← 실제 스캐너의 결과. data-component 가 없으면 비어 있다.
+    // v3(P1): 스캔 런타임이 data-wigss 에서 읽어 실어주는 주소.
+    sourceAddress: `${s.file}:${s.address.line}:${s.address.column}`,
     reasoning: 'ab-harness',
     fullClassName: s.runtimeClassName,
   };
@@ -86,6 +92,8 @@ export async function runA(s: Scenario): Promise<RunResult> {
     changes: [toChange(s)],
     components: [toComponent(s)],
     sources,
+    viewportWidth: BP_WIDTH[s.breakpoint],
+    tailwindProject: true, // 픽스처에 tailwind.config.js 존재 — 라우트의 fs 판정과 동일
   });
   const elapsedMs = performance.now() - t0;
 

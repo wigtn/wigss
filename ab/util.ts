@@ -93,6 +93,17 @@ export function applyDiff(
   const modified = diff.modified ?? '';
   if (!original || !modified) return { ok: false, reason: 'empty original/modified' };
 
+  // v3: 주소 경로의 range 치환 (드리프트 검사 포함) — /api/apply 와 동일 계약
+  if (diff.range) {
+    const { start, end } = diff.range;
+    if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end > content.length || start >= end) {
+      return { ok: false, reason: 'range out of bounds' };
+    }
+    if (content.slice(start, end) !== original) {
+      return { ok: false, reason: 'drift: range content changed' };
+    }
+  }
+
   const isCss = diff.file.endsWith('.css') || diff.file.endsWith('.scss');
   if (!isCss) {
     if (!original.includes('className') && !original.includes('style')) {
@@ -105,6 +116,10 @@ export function applyDiff(
       const b = (modified.match(new RegExp(esc, 'g')) || []).length;
       if (a !== b) return { ok: false, reason: `JS structure changed (${p.trim()})` };
     }
+  }
+  if (diff.range) {
+    const { start, end } = diff.range;
+    return { ok: true, content: content.slice(0, start) + modified + content.slice(end) };
   }
   const idx = content.indexOf(original);
   if (idx === -1) return { ok: false, reason: 'original snippet not found' };

@@ -40,9 +40,17 @@ const STATUS_LABELS: Record<string, string> = {
  * reports in the agent store; on failure records a verificationWarning so the
  * UI can surface the issue without throwing.
  */
+interface VerifyContext {
+  projectPath: string;
+  viewportWidth: number;
+  /** P7(PROD-636): 자동 재시도 잔여 횟수. 0이면 사람에게 넘긴다 */
+  retriesLeft: number;
+}
+
 async function runVerification(
   expectations: ReturnType<typeof buildExpectationsFromChanges>,
   priorBoxes: Record<string, import('@/types').BoundingBox>,
+  ctx: VerifyContext,
 ): Promise<void> {
   try {
     const agent = useAgentStore.getState();
@@ -86,6 +94,13 @@ async function runVerification(
         : `${result.data.reports.filter((r) => !r.passed).length} expectation(s) failed`,
     );
     if (!result.data.passed) {
+      /* ── P7(PROD-636): 자동 재시도 — 사람을 기다리지 않는다 ──
+       * 실패 → 자동 롤백(역치환) → T1 모델 수선 → 재적용 → 재검증(1회).
+       * T1 이 불가하면(NO_AUTH·거절) 기존처럼 경고 + 수동 롤백으로. */
+      if (ctx.retriesLeft > 0) {
+        const retried = await attemptAutoRepair(result.data.reports, expectations, priorBoxes, ctx);
+        if (retried) return;
+      }
       agent.setVerificationWarning(
         `적용 결과가 의도와 다릅니다. 롤백할 수 있습니다.`,
       );
@@ -96,6 +111,104 @@ async function runVerification(
     useAgentStore.getState().setVerificationWarning(`검증 호출 실패: ${msg}`);
     useAgentStore.getState().addLog('verify_error', msg);
   }
+}
+
+/**
+ * P7: 실패한 검증에 대한 자동 복구 시도.
+ * 롤백 → T1 수선 → 리로드·재스캔 → 재검증(retriesLeft-1).
+ * 어느 단계든 불가하면 false 를 돌려 기존 수동 경로로 넘긴다.
+ */
+async function attemptAutoRepair(
+  reports: FidelityReport[],
+  expectations: ReturnType<typeof buildExpectationsFromChanges>,
+  priorBoxes: Record<string, import('@/types').BoundingBox>,
+  ctx: VerifyContext,
+): Promise<boolean> {
+  const agent = useAgentStore.getState();
+  const editor = useEditorStore.getState();
+  const failed = reports.find((r) => !r.passed && r.mismatches.some((m) => m.property !== '__measurement__'));
+  if (!failed) return false;
+
+  const component = editor.components.find((c) => c.id === failed.componentId);
+  const expectation = expectations.find((e) => e.componentId === failed.componentId);
+  if (!component?.sourceAddress || !expectation) {
+    agent.addLog('auto_repair_skip', '주소 또는 기대치 없음 — 수동 경로로');
+    return false;
+  }
+
+  agent.addLog('auto_repair', `검증 실패 → 자동 롤백 후 T1 수선 시도 (${failed.componentId})`);
+  agent.setStatus('refactoring');
+
+  // 1) 자동 롤백 (역치환 — 사용자 동시 수정은 보존된다)
+  const backupId = agent.lastBackupId;
+  if (backupId) {
+    const rb = await fetch('/api/rollback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ backupId }),
+    });
+    if (!rb.ok) {
+      agent.addLog('auto_repair_skip', '자동 롤백 거부됨 — 수동 경로로');
+      agent.setStatus('idle');
+      return false;
+    }
+  }
+
+  // 2) T1 수선 (서버가 적용까지 수행하고 새 backupId 를 준다)
+  const rp = await fetch('/api/repair', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      address: component.sourceAddress,
+      targetStyles: expectation.expectedStyles,
+      viewportWidth: ctx.viewportWidth,
+      projectPath: ctx.projectPath,
+      mismatches: failed.mismatches,
+    }),
+  });
+  const rpJson = (await rp.json()) as {
+    success: boolean;
+    data?: { backupId: string; explanation: string };
+    error?: { code?: string; message?: string };
+  };
+  if (!rp.ok || !rpJson.success || !rpJson.data) {
+    const code = rpJson.error?.code;
+    agent.addLog(
+      'auto_repair_skip',
+      code === 'NO_AUTH' ? 'Claude 인증 없음 — T1 건너뜀' : `T1 거절: ${rpJson.error?.message ?? rp.status}`,
+    );
+    agent.setStatus('idle');
+    return false;
+  }
+
+  agent.addLog('auto_repair_applied', rpJson.data.explanation);
+  agent.setApplyResult(rpJson.data.backupId, expectations, priorBoxes);
+
+  // 3) 리로드 → (iframe load) 재스캔 → 재검증 (남은 횟수 차감)
+  agent.setAwaitingRescan(true);
+  setTimeout(() => {
+    const iframes = document.querySelectorAll('iframe');
+    for (const iframe of Array.from(iframes)) {
+      try { iframe.contentWindow?.location.reload(); } catch {}
+    }
+  }, 300);
+  agent.setStatus('verifying');
+  const prevComponents = editor.components;
+  let done = false;
+  const finish = () => {
+    if (done) return;
+    done = true;
+    unsubscribe();
+    clearTimeout(fallback);
+    void runVerification(expectations, priorBoxes, { ...ctx, retriesLeft: ctx.retriesLeft - 1 }).finally(() => {
+      useAgentStore.getState().setStatus('idle');
+    });
+  };
+  const unsubscribe = useEditorStore.subscribe((state) => {
+    if (state.components !== prevComponents && state.components.length > 0) finish();
+  });
+  const fallback = setTimeout(finish, 8000);
+  return true;
 }
 
 export default function FloatingToolbar() {
@@ -153,14 +266,16 @@ export default function FloatingToolbar() {
       const expectations = buildExpectationsFromChanges(changes, components);
 
       try {
+        // P3(PROD-633): 지배 토큰 선택을 위해 편집 시점 뷰포트 폭을 전달한다
+        const viewportWidth = viewportMode === 'mobile' ? 375 : 1280;
         const response = await fetch('/api/refactor', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ changes, components, projectPath: effectivePath }),
+          body: JSON.stringify({ changes, components, projectPath: effectivePath, viewportWidth }),
         });
         const result = await response.json() as {
           success: boolean;
-          data?: { diffs: typeof diffs; message?: string };
+          data?: { diffs: typeof diffs; skipped?: { componentId: string; reason: string }[]; message?: string };
           error?: { message?: string };
         };
 
@@ -169,11 +284,16 @@ export default function FloatingToolbar() {
         }
 
         if (result.data.diffs.length === 0) {
+          // D5: 실패에는 사유가 있다 — 원인과 무관한 "더 큰 변경" 안내를 하지 않는다
+          const firstReason = result.data.skipped?.[0]?.reason;
           setSaveState('error');
-          setSaveMessage('코드 변경을 생성하지 못했습니다. 더 큰 변경을 해보세요.');
-          setTimeout(() => { setSaveState('idle'); setSaveMessage(''); }, 3000);
+          setSaveMessage(firstReason
+            ? `적용 불가: ${firstReason}`
+            : '코드 변경을 생성하지 못했습니다.');
+          setTimeout(() => { setSaveState('idle'); setSaveMessage(''); }, 5000);
           return;
         }
+        const skippedCount = result.data.skipped?.length ?? 0;
 
         // Auto-apply immediately (no 2-step confirmation)
         const generatedDiffs = result.data.diffs;
@@ -206,7 +326,8 @@ export default function FloatingToolbar() {
         const { applied, filesChanged, failed, backupId } = applyResult.data;
         const fileList = filesChanged.map((f: string) => f.split('/').pop()).join(', ');
         setSaveState('done');
-        setSaveMessage(`✓ 저장 완료! ${applied}개 수정 적용: ${fileList}`);
+        setSaveMessage(`✓ 저장 완료! ${applied}개 수정 적용: ${fileList}` +
+          (skippedCount > 0 ? ` · ${skippedCount}개 건너뜀(사유는 로그)` : ''));
         addLog('apply_done', `Applied ${applied} diff(s) across ${filesChanged.length} file(s)`);
 
         if (failed.length > 0) {
@@ -229,27 +350,44 @@ export default function FloatingToolbar() {
 
         useAgentStore.getState().setStatus('idle');
 
-        // Reload iframe + re-scan
+        /* P5(PROD-635): 고정 대기(1s/3s/4.5s) 체인을 이벤트 기반으로.
+         * - 리로드: 짧은 지연 후 트리거 (fs 반영 여유)
+         * - 재스캔: iframe 의 load 이벤트가 트리거 (VisualEditor onLoad + awaitingRescan)
+         * - 검증: 재스캔 결과가 스토어에 반영되는 순간 트리거, 8초 폴백
+         * 느린 프로젝트에서 '재발견 실패'로 빠지던 원인이 고정 대기였다. */
+        useAgentStore.getState().setAwaitingRescan(true);
         setTimeout(() => {
           const iframes = document.querySelectorAll('iframe');
           for (const iframe of Array.from(iframes)) {
             try { iframe.contentWindow?.location.reload(); } catch {}
           }
-        }, 1000);
-        setTimeout(() => {
-          sendMessage('scan', { url: targetUrl, projectPath: effectivePath });
-        }, 3000);
+        }, 300);
 
-        // Fidelity verification: run /api/verify once components have been
-        // re-measured. Skip entirely if we had nothing to verify or no backup
-        // to roll back to.
         if (expectations.length > 0 && backupId) {
           useAgentStore.getState().setStatus('verifying');
-          setTimeout(() => {
-            void runVerification(expectations, priorBoxes).finally(() => {
+          const verifyStartedAt = performance.now();
+          let done = false;
+          const finish = (label: string) => {
+            if (done) return;
+            done = true;
+            unsubscribe();
+            clearTimeout(fallback);
+            addLog('verify_timing', `${label} +${Math.round(performance.now() - verifyStartedAt)}ms`);
+            void runVerification(expectations, priorBoxes, {
+              projectPath: effectivePath,
+              viewportWidth,
+              retriesLeft: 1, // P7: 자동 복구는 1회 — 루프 폭주 방지
+            }).finally(() => {
               useAgentStore.getState().setStatus('idle');
             });
-          }, 4500);
+          };
+          const prevComponents = useEditorStore.getState().components;
+          const unsubscribe = useEditorStore.subscribe((state) => {
+            if (state.components !== prevComponents && state.components.length > 0) {
+              finish('rescan-event');
+            }
+          });
+          const fallback = setTimeout(() => finish('fallback-8s'), 8000);
         }
 
         setTimeout(() => { setSaveState('idle'); setSaveMessage(''); }, 5000);

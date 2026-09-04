@@ -12,7 +12,7 @@ export default function Home() {
       <main className="flex-1 px-8 py-10 max-w-7xl mx-auto w-full mt-[116px]">
         <Hero />
 
-        <div className="flex gap-8">
+        <div className="flex flex-col lg:flex-row gap-8">
           <CardGrid />
           <Sidebar />
         </div>
