@@ -1,6 +1,6 @@
 # Repository Metadata for GitHub About Section
 
-description: "WIGSS (Style Shaper) — Drag UI components and the source code rewrites itself | Built by WIGTN Crew (wigtn.com)"
+description: "Visual AI code refactoring tool — select, redesign, and apply Tailwind CSS changes with an always-on AI agent. npx wigss"
 website: "https://wigtn.com"
 topics:
   - wigtn
